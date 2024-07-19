@@ -1,8 +1,10 @@
 package main
 
-import "ya-GophKeeper/internal/client/console"
+import (
+	"ya-GophKeeper/internal/client"
+)
 
 func main() {
-	myClient := console.Client{}
+	myClient := client.Client{}
 	myClient.Start()
 }
