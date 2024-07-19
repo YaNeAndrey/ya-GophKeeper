@@ -15,16 +15,16 @@ type StorageRepo interface {
 
 	RemoveFiles(ctx context.Context, login string, fileIDs []int) error
 	RemoveCreditCards(ctx context.Context, login string, creditCardIDs []int) error
-	RemoveAuthDate(ctx context.Context, login string, authDateIDs []int) error
+	RemoveCredentials(ctx context.Context, login string, authDateIDs []int) error
 
 	InsertOrUpdateFiles(ctx context.Context, login string, file []FileInfo) ([]int, error)
 	InsertOrUpdateCreditCards(ctx context.Context, login string, creditCard []CreditCardInfo) error
-	InsertOrUpdateAuthDate(ctx context.Context, login string, authDate []AuthDateInfo) error
+	InsertOrUpdateCredentials(ctx context.Context, login string, authDate []CredentialInfo) error
 
 	GetAllFilesInfo(ctx context.Context, login string) ([]FileInfo, error)
 	GetAllCreditCardIDs(ctx context.Context, login string) ([]int, error)
-	GetAllAuthDateIDs(ctx context.Context, login string) ([]int, error)
+	GetAllCredentialIDs(ctx context.Context, login string) ([]int, error)
 
 	GetCreditCards(ctx context.Context, login string, cardIDs []int) ([]CreditCardInfo, error)
-	GetAuthDate(ctx context.Context, login string, authDateIDs []int) ([]AuthDateInfo, error)
+	GetCredential(ctx context.Context, login string, authDateIDs []int) ([]CredentialInfo, error)
 }

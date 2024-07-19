@@ -1,4 +1,4 @@
-package http
+package middleware
 
 import (
 	"net/http"
@@ -11,7 +11,6 @@ func Gzip() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			ow := w
-			//allAcceptEncodingHeaders := strings.Split(r.Header.Values("Accept-Encoding")[0], ", ")
 			var allAcceptEncodingSlice []string
 			allAcceptEncodingHeaders := r.Header.Values("Accept-Encoding")
 			if len(allAcceptEncodingHeaders) > 0 {
