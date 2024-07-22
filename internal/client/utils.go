@@ -2,12 +2,14 @@ package client
 
 import (
 	"bufio"
+	"container/list"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+	"ya-GophKeeper/internal/constants/consterror"
 	"ya-GophKeeper/internal/content"
 )
 
@@ -18,7 +20,7 @@ func RootPage(c *Client) bool {
 	fmt.Println("3) Add new information")
 	fmt.Println("4) Update information")
 	fmt.Println("5) Remove some information")
-	fmt.Println("6) Print all data")
+	fmt.Println("6) Print page")
 	fmt.Println("7) Get OTP for new device")
 	fmt.Println("8) Help and Information")
 	fmt.Println("9) Exit")
@@ -35,10 +37,7 @@ func RootPage(c *Client) bool {
 	case "5":
 		RunConsoleFunc(c, RemovePage)
 	case "6":
-		PrintCreditCards(c)
-		PrintTexts(c)
-		PrintFiles(c)
-		PrintCredentials(c)
+		RunConsoleFunc(c, PrintPage)
 	case "7":
 	case "8":
 		PrintHelpAndInformation(c)
@@ -88,6 +87,8 @@ func UpdatePage(c *Client) bool {
 		RunConsoleFunc(c, UpdateText)
 	case "5":
 		return false
+	default:
+		fmt.Println("Incorrect input")
 	}
 	return true
 }
@@ -110,6 +111,8 @@ func AddPage(c *Client) bool {
 		RunConsoleFunc(c, AddText)
 	case "5":
 		return false
+	default:
+		fmt.Println("Incorrect input")
 	}
 	return true
 }
@@ -133,49 +136,69 @@ func RemovePage(c *Client) bool {
 	case "5":
 		return false
 	default:
+		fmt.Println("Incorrect input")
 		return true
 	}
-	sn, err := ReadSerialNumber()
+	index, err := ReadDataIndex()
 	if err != nil {
-		log.Error(err)
+		log.Errorf("RemovePage : %w", err)
 		return true
 	}
-	if sn == -1 {
+	if index == -1 {
 		return true
 	}
 	switch answer {
 	case "1":
-		//Work with storage
+		err = c.storage.RemoveCredential(index)
+		if err != nil {
+			log.Errorf("RemovePage : %w", err)
+		}
 	case "2":
-		//Work with storage
+		err = c.storage.RemoveCreditCard(index)
+		if err != nil {
+			log.Errorf("RemovePage : %w", err)
+		}
 	case "3":
-		//Work with storage
+		err = c.storage.RemoveFile(index)
+		if err != nil {
+			log.Errorf("RemovePage : %w", err)
+		}
 	case "4":
-		//Work with storage
+		err = c.storage.RemoveText(index)
+		if err != nil {
+			log.Errorf("RemovePage : %w", err)
+		}
+	}
+	return true
+}
+func PrintPage(c *Client) bool {
+	fmt.Println("Remove page: ")
+	fmt.Println("1) Print credential")
+	fmt.Println("2) Print credit card")
+	fmt.Println("3) Print file")
+	fmt.Println("4) Print text")
+	fmt.Println("5) Return to previous page")
+	answer := ReadOneLine()
+	switch answer {
+	case "1":
+		PrintCredentials(c)
+	case "2":
+		PrintCreditCards(c)
+	case "3":
+		PrintFiles(c)
+	case "4":
+		PrintTexts(c)
+	case "5":
+		return false
+	default:
+		fmt.Println("Incorrect input")
 	}
 	return true
 }
 
-func Synchronization(c *Client) bool {
-	return false
-}
-
-func PrintCreditCards(c *Client) bool {
-	return false
-}
-func PrintFiles(c *Client) bool {
-	return false
-}
-func PrintTexts(c *Client) bool {
-	return false
-}
-func PrintCredentials(c *Client) bool {
-	return false
-}
-
 func UpdateCredential(c *Client) bool {
 	fmt.Println("Update credential: ")
-	credInfo, err := ReadCredential()
+	index, credInfo, err := ReadCredential()
 	if err != nil {
 		log.Error(err)
 		return true
@@ -183,11 +206,16 @@ func UpdateCredential(c *Client) bool {
 	if credInfo == nil {
 		return false
 	}
+	err = c.storage.UpdateCredentials(index, credInfo)
+	if err != nil {
+		log.Error(err)
+		return true
+	}
 	return false
 }
 func UpdateCreditCards(c *Client) bool {
 	fmt.Println("Update credential: ")
-	creditCardInfo, err := ReadCreditCard()
+	index, creditCardInfo, err := ReadCreditCard()
 	if err != nil {
 		log.Error(err)
 		return true
@@ -195,11 +223,16 @@ func UpdateCreditCards(c *Client) bool {
 	if creditCardInfo == nil {
 		return false
 	}
+	err = c.storage.UpdateCreditCards(index, creditCardInfo)
+	if err != nil {
+		log.Error(err)
+		return true
+	}
 	return false
 }
 func UpdateFiles(c *Client) bool {
 	fmt.Println("Update credential: ")
-	fileInfo, err := ReadBinaryFile()
+	index, fileInfo, err := ReadBinaryFile()
 	if err != nil {
 		log.Error(err)
 		return true
@@ -207,24 +240,34 @@ func UpdateFiles(c *Client) bool {
 	if fileInfo == nil {
 		return false
 	}
+	err = c.storage.UpdateFiles(index, fileInfo)
+	if err != nil {
+		log.Error(err)
+		return true
+	}
 	return false
 }
 func UpdateText(c *Client) bool {
 	fmt.Println("Update credential: ")
-	textInfo, err := ReadText()
+	index, textInfo, err := ReadText()
 	if err != nil {
 		log.Error(err)
 		return true
 	}
 	if textInfo == nil {
 		return false
+	}
+	err = c.storage.UpdateTexts(index, textInfo)
+	if err != nil {
+		log.Error(err)
+		return true
 	}
 	return false
 }
 
 func AddCredential(c *Client) bool {
 	fmt.Println("Add new credential data: ")
-	credInfo, err := ReadCredential()
+	_, credInfo, err := ReadCredential()
 	if err != nil {
 		log.Error(err)
 		return true
@@ -232,11 +275,16 @@ func AddCredential(c *Client) bool {
 	if credInfo == nil {
 		return false
 	}
+	err = c.storage.AddNewCredential(credInfo)
+	if err != nil {
+		log.Error(err)
+		return true
+	}
 	return false
 }
 func AddCreditCard(c *Client) bool {
 	fmt.Println("Add new credit card data: ")
-	creditCardInfo, err := ReadCreditCard()
+	_, creditCardInfo, err := ReadCreditCard()
 	if err != nil {
 		log.Error(err)
 		return true
@@ -244,11 +292,16 @@ func AddCreditCard(c *Client) bool {
 	if creditCardInfo == nil {
 		return false
 	}
+	err = c.storage.AddNewCreditCard(creditCardInfo)
+	if err != nil {
+		log.Error(err)
+		return true
+	}
 	return false
 }
 func AddFile(c *Client) bool {
 	fmt.Println("Add new file data: ")
-	fileInfo, err := ReadBinaryFile()
+	_, fileInfo, err := ReadBinaryFile()
 	if err != nil {
 		log.Error(err)
 		return true
@@ -256,11 +309,16 @@ func AddFile(c *Client) bool {
 	if fileInfo == nil {
 		return false
 	}
+	err = c.storage.AddNewFile(fileInfo)
+	if err != nil {
+		log.Error(err)
+		return true
+	}
 	return false
 }
 func AddText(c *Client) bool {
 	fmt.Println("Add new text data: ")
-	textInfo, err := ReadText()
+	_, textInfo, err := ReadText()
 	if err != nil {
 		log.Error(err)
 		return true
@@ -268,64 +326,16 @@ func AddText(c *Client) bool {
 	if textInfo == nil {
 		return false
 	}
+	err = c.storage.AddNewText(textInfo)
+	if err != nil {
+		log.Error(err)
+		return true
+	}
 	return false
 }
 
-/*
-	func RemoveCredential() bool {
-		fmt.Println("Remove credential data: ")
-		credInfo, err := ReadCredential()
-		if err != nil {
-			log.Error(err)
-			return true
-		}
-		if credInfo == nil {
-			return false
-		}
-		return false
-	}
-
-	func RemoveCreditCard() bool {
-		fmt.Println("Remove credit card data: ")
-		creditCardInfo, err := ReadCreditCard()
-		if err != nil {
-			log.Error(err)
-			return true
-		}
-		if creditCardInfo == nil {
-			return false
-		}
-		return false
-	}
-
-	func RemoveFile() bool {
-		fmt.Println("Remove file data: ")
-		fileInfo, err := ReadBinaryFile()
-		if err != nil {
-			log.Error(err)
-			return true
-		}
-		if fileInfo == nil {
-			return false
-		}
-		return false
-	}
-
-	func RemoveText() bool {
-		fmt.Println("Remove text data: ")
-		textInfo, err := ReadText()
-		if err != nil {
-			log.Error(err)
-			return true
-		}
-		if textInfo == nil {
-			return false
-		}
-		return false
-	}
-*/
-func ReadSerialNumber() (int, error) {
-	fmt.Println("Serial number (double Enter for return to previous page):")
+func ReadDataIndex() (int, error) {
+	fmt.Println("Select index (leave empty for return to previous page. Use 0 for Add operation.):")
 	serialNumberStr := ReadOneLine()
 	_ = serialNumberStr
 	if serialNumberStr == "" {
@@ -339,17 +349,14 @@ func ReadSerialNumber() (int, error) {
 	return sn, nil
 }
 
-/*TODO: Add checks for all fields*/
-func ReadCredential() (*content.CredentialInfo, error) {
-	sn, err := ReadSerialNumber()
+func ReadCredential() (int, *content.CredentialInfo, error) {
+	index, err := ReadDataIndex()
 	if err != nil {
-		log.Error(err)
-		return nil, err
+		return 0, nil, err
 	}
-	if sn == -1 {
-		return nil, nil
+	if index == -1 {
+		return 0, nil, nil
 	}
-
 	fmt.Println("Resource: ")
 	resource := ReadOneLine()
 
@@ -359,68 +366,94 @@ func ReadCredential() (*content.CredentialInfo, error) {
 	fmt.Println("Password: ")
 	password := ReadOneLine()
 
-	return &content.CredentialInfo{
-		ID:               sn,
+	return index, &content.CredentialInfo{
 		Resource:         resource,
 		Login:            login,
 		Password:         password,
-		ModificationTime: time.Time{},
+		ModificationTime: time.Now(),
 	}, nil
 }
-func ReadCreditCard() (*content.CreditCardInfo, error) {
-	sn, err := ReadSerialNumber()
+func ReadCreditCard() (int, *content.CreditCardInfo, error) {
+	index, err := ReadDataIndex()
 	if err != nil {
-		log.Error(err)
-		return nil, err
+		return 0, nil, err
 	}
-	if sn == -1 {
-		return nil, nil
+	if index == -1 {
+		return 0, nil, nil
 	}
+
+	errorsList := list.List{}
 	fmt.Println("Bank: ")
 	bank := ReadOneLine()
-	_ = bank
-	fmt.Println("Card Number (16 digits with spaces. format: 1111 2222 3333 4444): ")
+	fmt.Println("Card Number (16 digits without spaces): ")
 	cardNumber := ReadOneLine()
-	_ = cardNumber
+	if cardNumber != "" {
+		err = CheckCardNumberWithLuhn(cardNumber)
+		if err != nil {
+			errorsList.PushBack(err)
+		}
+	}
 	fmt.Println("CVV (3 digits): ")
 	cvv := ReadOneLine()
-	_ = cvv
+	if cvv != "" {
+		err = CheckCVV(cvv)
+		if err != nil {
+			errorsList.PushBack(err)
+		}
+	}
 	fmt.Println("ValidThru date (format dd.mm.yyyy/30.12.2001): ")
-	validThru := ReadOneLine()
-	_ = validThru
-	return &content.CreditCardInfo{}, nil
+	validThruStr := ReadOneLine()
+	var validThru time.Time
+	if validThruStr != "" {
+		validThru, err = time.Parse("01/02/2006", validThruStr)
+		if err != nil {
+			errorsList.PushBack(err)
+		}
+	}
+	if errorsList.Len() != 0 {
+		return 0, nil, fmt.Errorf("%v", errorsList)
+	} else {
+		return index, &content.CreditCardInfo{
+			CardNumber:       cardNumber,
+			CVV:              cvv,
+			ValidThru:        validThru,
+			Bank:             bank,
+			ModificationTime: time.Now(),
+		}, nil
+	}
 }
-func ReadBinaryFile() (*content.BinaryFileInfo, error) {
-	sn, err := ReadSerialNumber()
+func ReadBinaryFile() (int, *content.BinaryFileInfo, error) {
+	index, err := ReadDataIndex()
 	if err != nil {
 		log.Error(err)
-		return nil, err
+		return 0, nil, err
 	}
-	if sn == -1 {
-		return nil, nil
+	if index == -1 {
+		return 0, nil, nil
 	}
 	fmt.Println("Base file name (example: file.txt): ")
 	fileName := ReadOneLine()
-	_ = fileName
 
 	fmt.Println("Description: ")
 	description := ReadOneLine()
-	_ = description
 
 	fmt.Println("File path for reading: ")
 	filePath := ReadOneLine()
-	_ = filePath
-	//read file
-	return &content.BinaryFileInfo{}, nil
+	return index, &content.BinaryFileInfo{
+		BaseFileName:     fileName,
+		FilePath:         filePath,
+		Description:      description,
+		ModificationTime: time.Now(),
+	}, nil
 }
-func ReadText() (*content.TextInfo, error) {
-	sn, err := ReadSerialNumber()
+func ReadText() (int, *content.TextInfo, error) {
+	index, err := ReadDataIndex()
 	if err != nil {
 		log.Error(err)
-		return nil, err
+		return 0, nil, err
 	}
-	if sn == -1 {
-		return nil, nil
+	if index == -1 {
+		return 0, nil, nil
 	}
 	fmt.Println("Description: ")
 	description := ReadOneLine()
@@ -430,7 +463,44 @@ func ReadText() (*content.TextInfo, error) {
 	textArray := ReadMultipleLines()
 	text := strings.Join(textArray, "\r\n")
 	_ = text
-	return &content.TextInfo{}, nil
+	return index, &content.TextInfo{}, nil
+}
+
+func Synchronization(c *Client) bool {
+	return false
+}
+
+func PrintCreditCards(c *Client) bool {
+	fmt.Println("*******************************************")
+	fmt.Println("Credit cards:")
+	for i, card := range c.storage.GetCreditCardData() {
+		fmt.Printf("%d) %s", i, card.String())
+	}
+	return false
+}
+func PrintFiles(c *Client) bool {
+	fmt.Println("*******************************************")
+	fmt.Println("Files:")
+	for i, file := range c.storage.GetFilesData() {
+		fmt.Printf("%d) %s", i, file.String())
+	}
+	return false
+}
+func PrintTexts(c *Client) bool {
+	fmt.Println("*******************************************")
+	fmt.Println("Texts:")
+	for i, text := range c.storage.GetTextData() {
+		fmt.Printf("%d) %s", i, text.String())
+	}
+	return false
+}
+func PrintCredentials(c *Client) bool {
+	fmt.Println("*******************************************")
+	fmt.Println("Credentials:")
+	for i, cred := range c.storage.GetCredentials() {
+		fmt.Printf("%d) %s", i, cred.String())
+	}
+	return false
 }
 
 func GetOTP(c *Client) string {
@@ -480,4 +550,40 @@ func ReadOneLine() string {
 		return ""
 	}
 	return scanner.Text()
+}
+
+func CheckCardNumberWithLuhn(cardNumberStr string) error {
+	total := 0
+	isSecondDigit := false
+
+	for i := len(cardNumberStr) - 1; i >= 0; i-- {
+		digit, err := strconv.Atoi(string(cardNumberStr[i]))
+		if err != nil {
+			return consterror.ErrCreditCardIncorrectChar
+		}
+		if isSecondDigit {
+			digit *= 2
+			if digit > 9 {
+				digit -= 9
+			}
+		}
+		total += digit
+		isSecondDigit = !isSecondDigit
+	}
+	if total%10 == 0 {
+		return nil
+	} else {
+		return consterror.ErrCreditCardLuhn
+	}
+}
+
+func CheckCVV(cvvStr string) error {
+	cvv, err := strconv.Atoi(cvvStr)
+	if err != nil {
+		return err
+	}
+	if cvv < 1000 && cvv > 99 {
+		return nil
+	}
+	return consterror.ErrIncorrectValueCVV
 }

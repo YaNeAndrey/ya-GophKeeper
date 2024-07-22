@@ -3,11 +3,19 @@ package client
 import (
 	"fmt"
 	"ya-GophKeeper/internal/client/config"
+	"ya-GophKeeper/internal/client/storage"
 )
 
 type Client struct {
-	config *config.Config
-	//storage *storage
+	config  *config.Config
+	storage storage.StorageRepo
+}
+
+func NewClient(c *config.Config, st storage.StorageRepo) *Client {
+	return &Client{
+		config:  c,
+		storage: st,
+	}
 }
 
 func (c *Client) Start() {
