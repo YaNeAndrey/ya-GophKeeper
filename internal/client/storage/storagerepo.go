@@ -1,6 +1,9 @@
 package storage
 
-import "context"
+import (
+	"context"
+	"ya-GophKeeper/internal/content"
+)
 
 type StorageRepo interface {
 	AddNewUser(ctx context.Context, login string, password string) error
@@ -17,14 +20,16 @@ type StorageRepo interface {
 	RemoveCreditCards(ctx context.Context, login string, creditCardIDs []int) error
 	RemoveCredentials(ctx context.Context, login string, authDateIDs []int) error
 
-	InsertOrUpdateFiles(ctx context.Context, login string, file []FileInfo) ([]int, error)
-	InsertOrUpdateCreditCards(ctx context.Context, login string, creditCard []CreditCardInfo) error
-	InsertOrUpdateCredentials(ctx context.Context, login string, authDate []CredentialInfo) error
+	InsertOrUpdateFiles(ctx context.Context, login string, file []content.BinaryFileInfo) ([]int, error)
+	InsertOrUpdateTexts(ctx context.Context, login string, file []content.TextInfo) ([]int, error)
+	InsertOrUpdateCreditCards(ctx context.Context, login string, creditCard []content.CreditCardInfo) error
+	InsertOrUpdateCredentials(ctx context.Context, login string, authDate []content.CredentialInfo) error
 
-	GetAllFilesInfo(ctx context.Context, login string) ([]FileInfo, error)
+	GetAllFilesData(ctx context.Context, login string) ([]content.BinaryFileInfo, error)
+	GetAllTextData(ctx context.Context, login string) ([]content.TextInfo, error)
 	GetAllCreditCardIDs(ctx context.Context, login string) ([]int, error)
 	GetAllCredentialIDs(ctx context.Context, login string) ([]int, error)
 
-	GetCreditCards(ctx context.Context, login string, cardIDs []int) ([]CreditCardInfo, error)
-	GetCredential(ctx context.Context, login string, authDateIDs []int) ([]CredentialInfo, error)
+	GetCreditCards(ctx context.Context, login string, cardIDs []int) ([]content.CreditCardInfo, error)
+	GetCredential(ctx context.Context, login string, authDateIDs []int) ([]content.CredentialInfo, error)
 }

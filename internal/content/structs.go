@@ -1,4 +1,4 @@
-package storage
+package content
 
 import "time"
 
@@ -10,10 +10,17 @@ type CredentialInfo struct {
 	ModificationTime time.Time
 }
 
-type FileInfo struct {
+type BinaryFileInfo struct {
 	ID               int
 	BaseFileName     string
-	ContentBase64    string
+	FilePath         string
+	Description      string
+	ModificationTime time.Time
+}
+
+type TextInfo struct {
+	ID               int
+	Content          string
 	Description      string
 	ModificationTime time.Time
 }
@@ -22,7 +29,7 @@ type CreditCardInfo struct {
 	ID               int
 	CardNumber       string
 	CVV              string
-	ValidThru        string
+	ValidThru        time.Time
 	Bank             string
 	ModificationTime time.Time
 }
