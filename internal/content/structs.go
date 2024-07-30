@@ -6,11 +6,11 @@ import (
 )
 
 type CredentialInfo struct {
-	ID               int
-	Resource         string
-	Login            string
-	Password         string
-	ModificationTime time.Time
+	ID               int       `json:"id"`
+	Resource         string    `json:"resource"`
+	Login            string    `json:"login"`
+	Password         string    `json:"passwd"`
+	ModificationTime time.Time `json:"mod_time"`
 }
 
 func (c *CredentialInfo) String() string {
@@ -19,12 +19,12 @@ func (c *CredentialInfo) String() string {
 }
 
 type BinaryFileInfo struct {
-	ID               int
-	FileName         string
-	FilePath         string
-	Description      string
-	FileSize         int
-	ModificationTime time.Time
+	ID               int       `json:"id"`
+	FileName         string    `json:"file_name"`
+	FilePath         string    `json:"file_path"`
+	Description      string    `json:"description"`
+	FileSize         int       `json:"file_size"`
+	ModificationTime time.Time `json:"mod_time"`
 }
 
 func (b *BinaryFileInfo) String() string {
@@ -33,10 +33,10 @@ func (b *BinaryFileInfo) String() string {
 }
 
 type TextInfo struct {
-	ID               int
-	Content          string
-	Description      string
-	ModificationTime time.Time
+	ID               int       `json:"id"`
+	Content          string    `json:"content"`
+	Description      string    `json:"description"`
+	ModificationTime time.Time `json:"mod_time"`
 }
 
 func (t *TextInfo) String() string {
@@ -45,12 +45,12 @@ func (t *TextInfo) String() string {
 }
 
 type CreditCardInfo struct {
-	ID               int
-	CardNumber       string
-	CVV              string
-	ValidThru        time.Time
-	Bank             string
-	ModificationTime time.Time
+	ID               int       `json:"id"`
+	CardNumber       string    `json:"card_number"`
+	CVV              string    `json:"cvv"`
+	ValidThru        time.Time `json:"valid_thru"`
+	Bank             string    `json:"bank"`
+	ModificationTime time.Time `json:"mod_time"`
 }
 
 func (c *CreditCardInfo) String() string {

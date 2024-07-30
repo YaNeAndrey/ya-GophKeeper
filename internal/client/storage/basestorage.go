@@ -8,29 +8,20 @@ import (
 	"os"
 	"path"
 	"time"
-	"ya-GophKeeper/internal/client/clerror"
+	"ya-GophKeeper/internal/client/const/clerror"
 	"ya-GophKeeper/internal/content"
 )
 
 type BaseStorage struct {
-	tempDir            string
-	credentials        []content.CredentialInfo
-	creditCards        []content.CreditCardInfo
-	texts              []content.TextInfo
-	files              []content.BinaryFileInfo
-	contentForRemoving RemovedContent
-}
-
-type RemovedContent struct {
-	credentials []int
-	creditCards []int
-	texts       []int
-	files       []int
+	credentials Credentials
+	creditCards CreditCards
+	texts       Texts
+	files       Files
 }
 
 func NewBaseStorage(tempDir string) *BaseStorage {
 	return &BaseStorage{
-		tempDir: tempDir,
+		files: Files{tempDir: tempDir},
 	}
 }
 
@@ -38,7 +29,7 @@ func (st *BaseStorage) AddNewCreditCard(creditCard *content.CreditCardInfo) erro
 	if creditCard.CardNumber == "" || creditCard.CVV == "" || creditCard.Bank == "" || creditCard.ValidThru.IsZero() {
 		return fmt.Errorf("AddNewCreditCard : %w", clerror.ErrAllFieldsMustBeFulled)
 	} else {
-		st.creditCards = append(st.creditCards, *creditCard)
+		st.creditCards.stored = append(st.creditCards.stored, *creditCard)
 		return nil
 	}
 }
@@ -46,7 +37,15 @@ func (st *BaseStorage) AddNewCredential(credential *content.CredentialInfo) erro
 	if credential.Login == "" || credential.Resource == "" || credential.Password == "" {
 		return fmt.Errorf("AddNewCredential : %w", clerror.ErrAllFieldsMustBeFulled)
 	} else {
-		st.credentials = append(st.credentials, *credential)
+		st.credentials.stored = append(st.credentials.stored, *credential)
+		return nil
+	}
+}
+func (st *BaseStorage) AddNewText(text *content.TextInfo) error {
+	if text.Content == "" {
+		return fmt.Errorf("AddNewText : %w", clerror.ErrAllFieldsMustBeFulled)
+	} else {
+		st.texts.stored = append(st.texts.stored, *text)
 		return nil
 	}
 }
@@ -54,7 +53,7 @@ func (st *BaseStorage) AddNewFile(file *content.BinaryFileInfo) error {
 	if file.FileName == "" || file.FilePath == "" {
 		return fmt.Errorf("AddNewFile : %w", clerror.ErrAllFieldsMustBeFulled)
 	}
-	tempFilePath := path.Join(st.tempDir, uuid.New().String())
+	tempFilePath := path.Join(st.files.tempDir, uuid.New().String())
 	if fileExists(file.FilePath) {
 		err := copyFileContents(file.FilePath, tempFilePath)
 		if err != nil {
@@ -71,163 +70,155 @@ func (st *BaseStorage) AddNewFile(file *content.BinaryFileInfo) error {
 		Description:      file.Description,
 		ModificationTime: time.Now(),
 	}
-	st.files = append(st.files, newFileData)
+	st.files.stored = append(st.files.stored, newFileData)
 	return nil
-}
-func (st *BaseStorage) AddNewText(text *content.TextInfo) error {
-	if text.Content == "" {
-		return fmt.Errorf("AddNewText : %w", clerror.ErrAllFieldsMustBeFulled)
-	} else {
-		st.texts = append(st.texts, *text)
-		return nil
-	}
 }
 
 func (st *BaseStorage) RemoveCreditCard(index int) error {
-	if st.creditCards == nil {
+	if st.creditCards.stored == nil {
 		return clerror.ErrOutOfRange
 	}
-	if index > len(st.creditCards) || index < 0 {
+	if index > len(st.creditCards.stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
-	cardID := st.creditCards[index].ID
+	cardID := st.creditCards.stored[index].ID
 	if cardID != 0 {
-		st.contentForRemoving.creditCards = append(st.contentForRemoving.creditCards, cardID)
+		st.creditCards.removed = append(st.creditCards.removed, cardID)
 	}
-	st.creditCards = append(st.creditCards[:index], st.creditCards[index+1:]...)
+	st.creditCards.stored = append(st.creditCards.stored[:index], st.creditCards.stored[index+1:]...)
 	return nil
 }
 func (st *BaseStorage) RemoveCredential(index int) error {
-	if st.credentials == nil {
+	if st.credentials.stored == nil {
 		return clerror.ErrOutOfRange
 	}
-	if index > len(st.credentials) || index < 0 {
+	if index > len(st.credentials.stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
 
-	credID := st.credentials[index].ID
+	credID := st.credentials.stored[index].ID
 	if credID != 0 {
-		st.contentForRemoving.credentials = append(st.contentForRemoving.credentials, credID)
+		st.credentials.removed = append(st.credentials.removed, credID)
 	}
-	st.credentials = append(st.credentials[:index], st.credentials[index+1:]...)
+	st.credentials.stored = append(st.credentials.stored[:index], st.credentials.stored[index+1:]...)
 	return nil
 }
 func (st *BaseStorage) RemoveText(index int) error {
-	if st.texts == nil {
+	if st.texts.stored == nil {
 		return clerror.ErrOutOfRange
 	}
-	if index > len(st.texts) || index < 0 {
+	if index > len(st.texts.stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
 
-	textID := st.texts[index].ID
+	textID := st.texts.stored[index].ID
 	if textID != 0 {
-		st.contentForRemoving.credentials = append(st.contentForRemoving.texts, textID)
+		st.texts.removed = append(st.texts.removed, textID)
 	}
-	st.texts = append(st.texts[:index], st.texts[index+1:]...)
+	st.texts.stored = append(st.texts.stored[:index], st.texts.stored[index+1:]...)
 	return nil
 }
 func (st *BaseStorage) RemoveFile(index int) error {
-	if st.files == nil {
+	if st.files.stored == nil {
 		return clerror.ErrOutOfRange
 	}
-	if index > len(st.files) || index < 0 {
+	if index > len(st.files.stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
 
-	fileID := st.files[index].ID
+	fileID := st.files.stored[index].ID
 	if fileID != 0 {
-		st.contentForRemoving.files = append(st.contentForRemoving.files, fileID)
+		st.files.removed = append(st.files.removed, fileID)
 	}
-	err := os.Remove(st.files[index].FilePath)
+	err := os.Remove(st.files.stored[index].FilePath)
 	if err != nil {
 		log.Println(err)
 	}
-	st.files = append(st.files[:index], st.files[index+1:]...)
+	st.files.stored = append(st.files.stored[:index], st.files.stored[index+1:]...)
 	return nil
 }
 
 func (st *BaseStorage) UpdateCreditCards(index int, creditCard *content.CreditCardInfo) error {
-	if index > len(st.creditCards) || index < 0 {
+	if index > len(st.creditCards.stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
 	if creditCard.CardNumber != "" {
-		st.creditCards[index].CardNumber = creditCard.CardNumber
+		st.creditCards.stored[index].CardNumber = creditCard.CardNumber
 	}
 	if creditCard.Bank != "" {
-		st.creditCards[index].Bank = creditCard.Bank
+		st.creditCards.stored[index].Bank = creditCard.Bank
 	}
 	if creditCard.CVV != "" {
-		st.creditCards[index].CVV = creditCard.CVV
+		st.creditCards.stored[index].CVV = creditCard.CVV
 	}
 	if !creditCard.ValidThru.IsZero() {
-		st.creditCards[index].ValidThru = creditCard.ValidThru
+		st.creditCards.stored[index].ValidThru = creditCard.ValidThru
 	}
-	st.creditCards[index].ModificationTime = creditCard.ModificationTime
+	st.creditCards.stored[index].ModificationTime = creditCard.ModificationTime
 	return nil
 }
 func (st *BaseStorage) UpdateCredentials(index int, credential *content.CredentialInfo) error {
-	if index > len(st.credentials) || index < 0 {
+	if index > len(st.credentials.stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
 	if credential.Login != "" {
-		st.credentials[index].Login = credential.Login
+		st.credentials.stored[index].Login = credential.Login
 	}
 	if credential.Password != "" {
-		st.credentials[index].Password = credential.Password
+		st.credentials.stored[index].Password = credential.Password
 	}
 	if credential.Resource != "" {
-		st.credentials[index].Resource = credential.Resource
+		st.credentials.stored[index].Resource = credential.Resource
 	}
-	st.credentials[index].ModificationTime = credential.ModificationTime
+	st.credentials.stored[index].ModificationTime = credential.ModificationTime
 	return nil
 }
 func (st *BaseStorage) UpdateFiles(index int, file *content.BinaryFileInfo) error {
-	if index > len(st.files) || index < 0 {
+	if index > len(st.files.stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
 	if file.FilePath != "" {
 		if fileExists(file.FilePath) {
-			err := copyFileContents(file.FilePath, st.files[index].FilePath)
+			err := copyFileContents(file.FilePath, st.files.stored[index].FilePath)
 			if err != nil {
 				return err
 			}
 		}
 	}
 	if file.FileName != "" {
-		st.files[index].FileName = file.FileName
+		st.files.stored[index].FileName = file.FileName
 	}
 	if file.Description != "" {
-		st.files[index].Description = file.Description
+		st.files.stored[index].Description = file.Description
 	}
-	st.files[index].ModificationTime = file.ModificationTime
+	st.files.stored[index].ModificationTime = file.ModificationTime
 	return nil
 }
 func (st *BaseStorage) UpdateTexts(index int, text *content.TextInfo) error {
-	if index > len(st.texts) || index < 0 {
+	if index > len(st.texts.stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
 	if text.Content != "" {
-		st.texts[index].Content = text.Content
+		st.texts.stored[index].Content = text.Content
 	}
 	if text.Description != "" {
-		st.texts[index].Description = text.Description
+		st.texts.stored[index].Description = text.Description
 	}
-	st.texts[index].ModificationTime = text.ModificationTime
+	st.texts.stored[index].ModificationTime = text.ModificationTime
 	return nil
 }
 
 func (st *BaseStorage) GetCreditCardData() []content.CreditCardInfo {
-	return st.creditCards
+	return st.creditCards.stored
 }
 func (st *BaseStorage) GetCredentials() []content.CredentialInfo {
-	return st.credentials
+	return st.credentials.stored
 }
 func (st *BaseStorage) GetFilesData() []content.BinaryFileInfo {
-	return st.files
+	return st.files.stored
 }
 func (st *BaseStorage) GetTextData() []content.TextInfo {
-	return st.texts
+	return st.texts.stored
 }
 
 func fileExists(filename string) bool {
