@@ -8,28 +8,25 @@ import (
 type StorageRepo interface {
 	AddNewUser(ctx context.Context, login string, password string) error
 	CheckUserPassword(ctx context.Context, login string, password string) (bool, error)
-	ChangeUserPassword(ctx context.Context, login string, password string) (bool, error)
+	ChangeUserPassword(ctx context.Context, login string, password string) error
 
-	/*
-		AddNewFile(ctx context.Context, login string, file FileInfo) error
-		AddNewCreditCard(ctx context.Context, login string, creditCard CreditCardInfo) error
-		AddNewAuthDate(ctx context.Context, login string, authDate AuthDateInfo) error
-	*/
+	AddNewFiles(ctx context.Context, login string, files []content.BinaryFileInfo) error
+	AddNewTexts(ctx context.Context, login string, texts []content.TextInfo) error
+	AddNewCreditCards(ctx context.Context, login string, creditCards []content.CreditCardInfo) error
+	AddNewCredentials(ctx context.Context, login string, credentials []content.CredentialInfo) error
 
 	RemoveFiles(ctx context.Context, login string, fileIDs []int) error
+	RemoveTexts(ctx context.Context, login string, textIDs []int) error
 	RemoveCreditCards(ctx context.Context, login string, creditCardIDs []int) error
-	RemoveCredentials(ctx context.Context, login string, authDateIDs []int) error
+	RemoveCredentials(ctx context.Context, login string, credentialIDs []int) error
 
-	InsertOrUpdateFiles(ctx context.Context, login string, file []content.BinaryFileInfo) ([]int, error)
-	InsertOrUpdateTexts(ctx context.Context, login string, file []content.TextInfo) ([]int, error)
-	InsertOrUpdateCreditCards(ctx context.Context, login string, creditCard []content.CreditCardInfo) error
-	InsertOrUpdateCredentials(ctx context.Context, login string, authDate []content.CredentialInfo) error
-
-	GetAllFilesData(ctx context.Context, login string) ([]content.BinaryFileInfo, error)
-	GetAllTextData(ctx context.Context, login string) ([]content.TextInfo, error)
-	GetAllCreditCardIDs(ctx context.Context, login string) ([]int, error)
-	GetAllCredentialIDs(ctx context.Context, login string) ([]int, error)
+	UpdateFiles(ctx context.Context, login string, files []content.BinaryFileInfo) error
+	UpdateTexts(ctx context.Context, login string, texts []content.TextInfo) error
+	UpdateCreditCards(ctx context.Context, login string, creditCards []content.CreditCardInfo) error
+	UpdateCredentials(ctx context.Context, login string, credentials []content.CredentialInfo) error
 
 	GetCreditCards(ctx context.Context, login string, cardIDs []int) ([]content.CreditCardInfo, error)
-	GetCredential(ctx context.Context, login string, authDateIDs []int) ([]content.CredentialInfo, error)
+	GetCredentials(ctx context.Context, login string, credIDs []int) ([]content.CredentialInfo, error)
+	GetFiles(ctx context.Context, login string, fileIDs []int) ([]content.BinaryFileInfo, error)
+	GetTexts(ctx context.Context, login string, textIDs []int) ([]content.TextInfo, error)
 }

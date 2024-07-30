@@ -20,14 +20,15 @@ func (c *CredentialInfo) String() string {
 
 type BinaryFileInfo struct {
 	ID               int
-	BaseFileName     string
+	FileName         string
 	FilePath         string
 	Description      string
+	FileSize         int
 	ModificationTime time.Time
 }
 
 func (b *BinaryFileInfo) String() string {
-	resStr := fmt.Sprintf("File name: %s; File path: %s; Description: %s;\r\n", b.BaseFileName, b.FilePath, b.Description)
+	resStr := fmt.Sprintf("File name: %s; File path: %s; Description: %s;\r\n", b.FileName, b.FilePath, b.Description)
 	return resStr
 }
 

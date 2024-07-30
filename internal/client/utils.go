@@ -9,39 +9,63 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"ya-GophKeeper/internal/constants/consterror"
+	"ya-GophKeeper/internal/client/clerror"
 	"ya-GophKeeper/internal/content"
 )
 
-func RootPage(c *Client) bool {
-	fmt.Println("Main page: ")
-	fmt.Println("1) Login/Re-login")
-	fmt.Println("2) Sync data")
-	fmt.Println("3) Add new information")
-	fmt.Println("4) Update information")
-	fmt.Println("5) Remove some information")
-	fmt.Println("6) Print page")
-	fmt.Println("7) Get OTP for new device")
-	fmt.Println("8) Help and Information")
-	fmt.Println("9) Exit")
+func StartPage(c *Client) bool {
+	fmt.Println("1) Sign in")
+	fmt.Println("2) Sign up")
+	fmt.Println("3) Exit")
 	choice := ReadOneLine()
 	switch choice {
 	case "1":
 		RunConsoleFunc(c, LoginPage)
 	case "2":
-		RunConsoleFunc(c, Synchronization)
+		RunConsoleFunc(c, RegistrationPage)
 	case "3":
-		RunConsoleFunc(c, AddPage)
+		return false
 	case "4":
+		RunConsoleFunc(c, MainPage)
+	default:
+		fmt.Println("Incorrect input")
+	}
+	return true
+}
+
+func MainPage(c *Client) bool {
+	fmt.Println("Main page: ")
+	fmt.Println("1) Add new information page")
+	fmt.Println("2) Update information page")
+	fmt.Println("3) Remove information page")
+	fmt.Println("4) Print information page")
+	fmt.Println("5) Sync data")
+	fmt.Println("6) Get OTP for new device")
+	fmt.Println("7) Re-login")
+	fmt.Println("8) Change password")
+	fmt.Println("9) Help")
+	fmt.Println("10) Exit")
+	choice := ReadOneLine()
+	switch choice {
+	case "1":
+		RunConsoleFunc(c, AddPage)
+	case "2":
 		RunConsoleFunc(c, UpdatePage)
-	case "5":
+	case "3":
 		RunConsoleFunc(c, RemovePage)
-	case "6":
+	case "4":
 		RunConsoleFunc(c, PrintPage)
+	case "5":
+		RunConsoleFunc(c, Synchronization)
+	case "6":
+		//Get OTP
 	case "7":
+		RunConsoleFunc(c, LoginPage)
 	case "8":
-		PrintHelpAndInformation(c)
+		//Change password
 	case "9":
+		PrintHelpAndInformation(c)
+	case "10":
 		return false
 	default:
 		fmt.Println("Incorrect input")
@@ -62,6 +86,15 @@ func LoginPage(c *Client) bool {
 		return false
 	}
 	return true
+}
+func RegistrationPage(c *Client) bool {
+	fmt.Println("Login: ")
+	newUserLogin := ReadOneLine()
+	fmt.Println("Password: ")
+	newUserPaswd := ReadOneLine()
+	_ = newUserPaswd
+	_ = newUserLogin
+	return false
 }
 
 func UpdatePage(c *Client) bool {
@@ -440,7 +473,7 @@ func ReadBinaryFile() (int, *content.BinaryFileInfo, error) {
 	fmt.Println("File path for reading: ")
 	filePath := ReadOneLine()
 	return index, &content.BinaryFileInfo{
-		BaseFileName:     fileName,
+		FileName:         fileName,
 		FilePath:         filePath,
 		Description:      description,
 		ModificationTime: time.Now(),
@@ -559,7 +592,7 @@ func CheckCardNumberWithLuhn(cardNumberStr string) error {
 	for i := len(cardNumberStr) - 1; i >= 0; i-- {
 		digit, err := strconv.Atoi(string(cardNumberStr[i]))
 		if err != nil {
-			return consterror.ErrCreditCardIncorrectChar
+			return clerror.ErrCreditCardIncorrectChar
 		}
 		if isSecondDigit {
 			digit *= 2
@@ -573,7 +606,7 @@ func CheckCardNumberWithLuhn(cardNumberStr string) error {
 	if total%10 == 0 {
 		return nil
 	} else {
-		return consterror.ErrCreditCardLuhn
+		return clerror.ErrCreditCardLuhn
 	}
 }
 
@@ -585,5 +618,5 @@ func CheckCVV(cvvStr string) error {
 	if cvv < 1000 && cvv > 99 {
 		return nil
 	}
-	return consterror.ErrIncorrectValueCVV
+	return clerror.ErrIncorrectValueCVV
 }

@@ -1,4 +1,4 @@
-package consterror
+package clerror
 
 import "errors"
 
