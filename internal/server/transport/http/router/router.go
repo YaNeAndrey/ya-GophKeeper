@@ -34,16 +34,20 @@ func InitRouter() http.Handler {
 			})
 		})
 
+		r.Get("/otp", func(rw http.ResponseWriter, req *http.Request) {
+			handler.GenerateOTP_GET(rw, req, nil)
+		})
+
 		r.Post("/remove/{Datatype}", func(rw http.ResponseWriter, req *http.Request) {
 			handler.RemoveDataPOST(rw, req, nil)
 		})
 
 		r.Post("/add/{Datatype}", func(rw http.ResponseWriter, req *http.Request) {
-			handler.AddNewFilePOST(rw, req, nil)
+			handler.AddNewDataPOST(rw, req, nil)
 		})
 
 		r.Post("/sync/{Datatype}/StepNumber}", func(rw http.ResponseWriter, req *http.Request) {
-			handler.AddNewFilePOST(rw, req, nil)
+			handler.SyncDataPOST(rw, req, nil)
 		})
 
 		r.Handle("/files/", fs)
