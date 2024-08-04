@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 	"ya-GophKeeper/internal/constants/urlsuff"
 	"ya-GophKeeper/internal/content"
 	"ya-GophKeeper/internal/server/otp"
@@ -128,26 +129,32 @@ func RemoveDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 		err = st.RemoveCredentials(context.Background(), login, rem)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	case urlsuff.DatatypeCreditCard:
 		err = st.RemoveCreditCards(context.Background(), login, rem)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	case urlsuff.DatatypeText:
 		err = st.RemoveTexts(context.Background(), login, rem)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	case urlsuff.DatatypeFile:
 		files, err := st.RemoveFiles(context.Background(), login, rem)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 		RemoveFiles(files)
 	default:
 		http.Error(w, srverror.ErrIncorrectDataTpe.Error(), http.StatusBadRequest)
+		return
 	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
@@ -162,6 +169,7 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 
 	dataType := strings.ToLower(chi.URLParam(r, "Datatype"))
 	login := claims.Login
+	var respBody []byte
 	switch dataType {
 	case urlsuff.DatatypeCredential:
 		var newCreds []content.CredentialInfo
@@ -170,9 +178,15 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		err = st.AddNewCredentials(context.Background(), login, newCreds)
-		if err != nil {
+		creds, err := st.AddNewCredentials(context.Background(), login, newCreds)
+		if err != nil || creds == nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		respBody, err = json.Marshal(creds)
+		if err != nil {
+			log.Println(err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	case urlsuff.DatatypeCreditCard:
 		var newCards []content.CreditCardInfo
@@ -181,10 +195,11 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		err = st.AddNewCreditCards(context.Background(), login, newCards)
-		if err != nil {
+		cards, err := st.AddNewCreditCards(context.Background(), login, newCards)
+		if err != nil || cards == nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+		respBody, err = json.Marshal(cards)
 	case urlsuff.DatatypeText:
 		var newTexts []content.TextInfo
 		err := json.NewDecoder(r.Body).Decode(&newTexts)
@@ -192,15 +207,24 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		err = st.AddNewTexts(context.Background(), login, newTexts)
-		if err != nil {
+		texts, err := st.AddNewTexts(context.Background(), login, newTexts)
+		if err != nil || texts == nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+		respBody, err = json.Marshal(texts)
 	case urlsuff.DatatypeFile:
 		AddNewFilePOST()
 	default:
 		http.Error(w, srverror.ErrIncorrectDataTpe.Error(), http.StatusBadRequest)
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_, err := w.Write(respBody)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func AddNewFilePOST() {
@@ -213,9 +237,6 @@ func SyncDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo
 		http.Error(w, "", http.StatusUnauthorized)
 		return
 	}
-	if r.Header.Get("Content-Type") != "application/json" {
-		http.Error(w, "Incorrect Content-Type. application/json required", http.StatusBadRequest)
-	}
 
 	dataType := strings.ToLower(chi.URLParam(r, "Datatype"))
 	syncStep := strings.ToLower(chi.URLParam(r, "StepNumber"))
@@ -223,12 +244,125 @@ func SyncDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo
 	_ = dataType
 	switch syncStep {
 	case "1":
-		//FirstStep()
+		SyncFirstStep(w, r, claims.Login, dataType, st)
 	case "2":
-		//SecondStep()
+		SyncSecondStep(w, r, claims.Login, dataType, st)
 	default:
 		http.Error(w, srverror.ErrIncorrectSyncStep.Error(), http.StatusBadRequest)
 	}
+}
+
+func SyncFirstStep(w http.ResponseWriter, r *http.Request, login string, dataType string, st storage.StorageRepo) {
+	var cliInfo map[int]time.Time
+	err := json.NewDecoder(r.Body).Decode(&cliInfo)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	ctx := context.Background()
+	srvInfo, err := st.GetModtimeWithIDs(context.Background(), login, dataType)
+	var dataForSrv []int
+	var sendToCli []int
+	for id, info := range srvInfo {
+		modtime, ok := cliInfo[id]
+		if !ok {
+			sendToCli = append(sendToCli, id)
+			continue
+		}
+		if info.Before(modtime) {
+			dataForSrv = append(dataForSrv, id)
+		} else if modtime.Before(info) {
+			sendToCli = append(sendToCli, id)
+		}
+	}
+	var removeFromCli []int
+	for id, _ := range cliInfo {
+		_, ok := srvInfo[id]
+		if !ok {
+			removeFromCli = append(removeFromCli, id)
+			continue
+		}
+	}
+
+	answer := struct {
+		dataForSrv    []int
+		removeFromCli []int
+		dataForCli    interface{}
+	}{dataForSrv: dataForSrv,
+		removeFromCli: removeFromCli}
+	switch dataType {
+	case urlsuff.DatatypeCredential:
+		answer.dataForCli, err = st.GetCredentials(ctx, login, sendToCli)
+	case urlsuff.DatatypeCreditCard:
+		answer.dataForCli, err = st.GetCreditCards(ctx, login, sendToCli)
+	case urlsuff.DatatypeText:
+		answer.dataForCli, err = st.GetTexts(ctx, login, sendToCli)
+	case urlsuff.DatatypeFile:
+		answer.dataForCli, err = st.GetFiles(ctx, login, sendToCli)
+	}
+	respBody, err := json.Marshal(answer)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_, err = w.Write(respBody)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+func SyncSecondStep(w http.ResponseWriter, r *http.Request, login string, dataType string, st storage.StorageRepo) {
+	if r.Header.Get("Content-Type") != "application/json" {
+		http.Error(w, "Incorrect Content-Type. application/json required", http.StatusBadRequest)
+	}
+	switch dataType {
+	case urlsuff.DatatypeCredential:
+		var newCreds []content.CredentialInfo
+		err := json.NewDecoder(r.Body).Decode(&newCreds)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		err = st.UpdateCredentials(context.Background(), login, newCreds)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	case urlsuff.DatatypeCreditCard:
+		var newCards []content.CreditCardInfo
+		err := json.NewDecoder(r.Body).Decode(&newCards)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		err = st.UpdateCreditCards(context.Background(), login, newCards)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	case urlsuff.DatatypeText:
+		var newTexts []content.TextInfo
+		err := json.NewDecoder(r.Body).Decode(&newTexts)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		err = st.UpdateTexts(context.Background(), login, newTexts)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	case urlsuff.DatatypeFile:
+		var newFiles []content.BinaryFileInfo
+		err := json.NewDecoder(r.Body).Decode(&newFiles)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		err = st.UpdateFiles(context.Background(), login, newFiles)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func GenerateOTP_GET(w http.ResponseWriter, r *http.Request, m *otp.ManagerOTP) {

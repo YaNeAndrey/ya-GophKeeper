@@ -14,7 +14,6 @@ func InitRouter() http.Handler {
 	})
 
 	fs := http.FileServer(http.Dir("temp file dir"))
-	http.Handle("/static/", http.StripPrefix("/static", fs))
 
 	logger := log.New()
 	logger.SetLevel(log.InfoLevel)
@@ -46,7 +45,7 @@ func InitRouter() http.Handler {
 			handler.AddNewDataPOST(rw, req, nil)
 		})
 
-		r.Post("/sync/{Datatype}/StepNumber}", func(rw http.ResponseWriter, req *http.Request) {
+		r.Post("/sync/{Datatype}/{StepNumber}", func(rw http.ResponseWriter, req *http.Request) {
 			handler.SyncDataPOST(rw, req, nil)
 		})
 

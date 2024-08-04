@@ -8,6 +8,7 @@ import (
 	"github.com/Rican7/retry/strategy"
 	log "github.com/sirupsen/logrus"
 	"time"
+	"ya-GophKeeper/internal/constants/urlsuff"
 	"ya-GophKeeper/internal/content"
 	"ya-GophKeeper/internal/server/srverror"
 )
@@ -130,43 +131,45 @@ func (st *StorageDB) ChangeUserPassword(ctx context.Context, login string, passw
 	return nil
 }
 
-func (st *StorageDB) AddNewCreditCards(ctx context.Context, login string, creditCards []content.CreditCardInfo) error {
+func (st *StorageDB) AddNewCreditCards(ctx context.Context, login string, creditCards []content.CreditCardInfo) ([]content.CreditCardInfo, error) {
 	db, err := TryToOpenDBConnection(st.connectionString)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var userID int
 	userID, err = GetUserID(ctx, login, db)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if userID == 0 {
-		return srverror.ErrLoginNotFound
+		return nil, srverror.ErrLoginNotFound
 	}
-	for _, card := range creditCards {
+	for index, card := range creditCards {
 		var cardID int
-		err = db.QueryRowContext(ctx, "INSERT INTO CreditCards(bank,card_number,valid_thru,cvv,modification_time) values($1,$2,$3,$4,$5) RETURNING ID_CreditCard;", card.Bank, card.CardNumber, card.ValidThru, card.CVV, card.ModificationTime).Scan(&cardID)
+		err := db.QueryRowContext(ctx, "INSERT INTO CreditCards(bank,card_number,valid_thru,cvv,modification_time) values($1,$2,$3,$4,$5) RETURNING ID_CreditCard;", card.Bank, card.CardNumber, card.ValidThru, card.CVV, card.ModificationTime).Scan(&cardID)
+
 		if err != nil {
 			log.Println(err)
 			continue
 		}
+		creditCards[index].ID = cardID
+
 		_, err = db.ExecContext(ctx, "INSERT INTO Users_CreditCards (ID_User,ID_CreditCard) values ($1,$2)", userID, cardID)
 		if err != nil {
 			log.Println(err)
 			//mb remove creditcard?
 		}
 	}
-	return nil
+	return creditCards, nil
 }
-
-func (st *StorageDB) AddNewCredentials(ctx context.Context, login string, credentials []content.CredentialInfo) error {
-	return nil
+func (st *StorageDB) AddNewCredentials(ctx context.Context, login string, credentials []content.CredentialInfo) ([]content.CredentialInfo, error) {
+	return nil, nil
 }
-func (st *StorageDB) AddNewFiles(ctx context.Context, login string, files []content.BinaryFileInfo) error {
-	return nil
+func (st *StorageDB) AddNewFiles(ctx context.Context, login string, files []content.BinaryFileInfo) ([]content.BinaryFileInfo, error) {
+	return nil, nil
 }
-func (st *StorageDB) AddNewTexts(ctx context.Context, login string, texts []content.TextInfo) error {
-	return nil
+func (st *StorageDB) AddNewTexts(ctx context.Context, login string, texts []content.TextInfo) ([]content.TextInfo, error) {
+	return nil, nil
 }
 
 func (st *StorageDB) RemoveCreditCards(ctx context.Context, login string, creditCardIDs []int) error {
@@ -290,6 +293,61 @@ func (st *StorageDB) GetFiles(ctx context.Context, login string, fileIDs []int) 
 }
 func (st *StorageDB) GetTexts(ctx context.Context, login string, textIDs []int) ([]content.TextInfo, error) {
 	return nil, nil
+}
+
+func (st *StorageDB) GetModtimeWithIDs(ctx context.Context, login string, dataType string) (map[int]time.Time, error) {
+	db, err := TryToOpenDBConnection(st.connectionString)
+	if err != nil {
+		return nil, err
+	}
+	var userID int
+	err = db.QueryRowContext(ctx, "SELECT id_credential,modification_time FROM credentials WHERE login = $1", login).Scan(&userID)
+	if err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			return nil, srverror.ErrLoginNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	var rows *sql.Rows
+
+	switch dataType {
+	case urlsuff.DatatypeCredential:
+		rows, err = db.QueryContext(ctx, "SELECT credentials.id_credential,modification_time FROM credentials JOIN users_credentials on credentials.id_credential = users_credentials.id_credential WHERE users_credentials.id_user = $1", userID)
+	case urlsuff.DatatypeCreditCard:
+		rows, err = db.QueryContext(ctx, "SELECT creditcards.id_creditcard,modification_time FROM creditcards JOIN users_credentials on creditcards.id_creditcard = users_credentials.id_credential WHERE users_credentials.id_user = $1", userID)
+	case urlsuff.DatatypeText:
+		rows, err = db.QueryContext(ctx, "SELECT texts.id_text,modification_time FROM texts JOIN users_texts on texts.id_text = users_texts.id_text WHERE users_texts.id_user = $1", userID)
+	case urlsuff.DatatypeFile:
+		rows, err = db.QueryContext(ctx, "SELECT files.id_file,modification_time FROM files JOIN users_files on files.id_file = users_files.id_file WHERE users_files.id_user = $1", userID)
+	default:
+		return nil, srverror.ErrIncorrectDataTpe
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	type row struct {
+		ID      int
+		modtime time.Time
+	}
+
+	var res map[int]time.Time
+	for rows.Next() {
+		var r row
+		err = rows.Scan(&r.ID, &r.modtime)
+		if err != nil {
+			break
+		}
+		res[r.ID] = r.modtime
+	}
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func GetUserID(ctx context.Context, login string, db *sql.DB) (int, error) {
