@@ -205,7 +205,7 @@ func RemovePage(c *Client) bool {
 	return true
 }
 func PrintPage(c *Client) bool {
-	fmt.Println("Remove page: ")
+	fmt.Println("Print page: ")
 	fmt.Println("1) Print credential")
 	fmt.Println("2) Print credit card")
 	fmt.Println("3) Print file")

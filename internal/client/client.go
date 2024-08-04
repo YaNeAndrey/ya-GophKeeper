@@ -24,5 +24,5 @@ func (c *Client) Start() {
 	fmt.Println(c.config)
 	fmt.Println("Build information: ")
 	fmt.Println(c.config)
-	RunConsoleFunc(c, RootPage)
+	RunConsoleFunc(c, StartPage)
 }

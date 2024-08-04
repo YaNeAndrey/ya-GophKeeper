@@ -225,8 +225,8 @@ func (st *StorageDB) RemoveCredentials(ctx context.Context, login string, creden
 	}
 	return nil
 }
-func (st *StorageDB) RemoveFiles(ctx context.Context, login string, fileIDs []int) error {
-	return nil
+func (st *StorageDB) RemoveFiles(ctx context.Context, login string, fileIDs []int) ([]string, error) {
+	return nil, nil
 }
 func (st *StorageDB) RemoveTexts(ctx context.Context, login string, textIDs []int) error { return nil }
 

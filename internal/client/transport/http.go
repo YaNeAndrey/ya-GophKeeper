@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"ya-GophKeeper/internal/client/const/clerror"
-	"ya-GophKeeper/internal/client/const/urlsuff"
 	"ya-GophKeeper/internal/client/storage"
+	"ya-GophKeeper/internal/constants/urlsuff"
 	"ya-GophKeeper/internal/content"
 )
 
@@ -159,6 +159,7 @@ func (tr *TransportHTTP) SyncUpdatedItems(ctx context.Context, items storage.Col
 	}
 	req, _ = http.NewRequest(http.MethodPost, reqURL, bodyReader)
 	req.Header.Add("Content-Type", "application/json")
+	reqURL, _ = url.JoinPath(reqURL, "1")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -174,13 +175,19 @@ func (tr *TransportHTTP) SyncUpdatedItems(ctx context.Context, items storage.Col
 		return err
 	}
 
+	buf := []rune(reqURL)
+	buf[len(buf)-1] = '2'
+	reqURL = string(buf)
+
 	itemsForServer := items.GetItems(srvAnswer.IDs)
 	bodyJSON, err = json.Marshal(itemsForServer)
 	if err != nil {
 		return err
 	}
 	bodyReader = bytes.NewReader(bodyJSON)
-	reqURL, _ = url.JoinPath(reqURL, "2")
+
+	([]rune(reqURL))[len(reqURL)-1] = '2'
+
 	req, _ = http.NewRequest(http.MethodPost, reqURL, bodyReader)
 	req.Header.Add("Content-Type", "application/json")
 

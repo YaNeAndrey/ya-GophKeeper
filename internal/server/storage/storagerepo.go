@@ -15,7 +15,7 @@ type StorageRepo interface {
 	AddNewCreditCards(ctx context.Context, login string, creditCards []content.CreditCardInfo) error
 	AddNewCredentials(ctx context.Context, login string, credentials []content.CredentialInfo) error
 
-	RemoveFiles(ctx context.Context, login string, fileIDs []int) error
+	RemoveFiles(ctx context.Context, login string, fileIDs []int) ([]string, error)
 	RemoveTexts(ctx context.Context, login string, textIDs []int) error
 	RemoveCreditCards(ctx context.Context, login string, creditCardIDs []int) error
 	RemoveCredentials(ctx context.Context, login string, credentialIDs []int) error
