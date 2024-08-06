@@ -21,7 +21,7 @@ func InitRouter() http.Handler {
 	//r.Use(middleware.Gzip())
 
 	r.Route("/", func(r chi.Router) {
-		r.Post("/register", func(rw http.ResponseWriter, req *http.Request) {
+		r.Post("/registration", func(rw http.ResponseWriter, req *http.Request) {
 			handler.RegistrationPOST(rw, req, nil)
 		})
 		r.Route("/login", func(r chi.Router) {

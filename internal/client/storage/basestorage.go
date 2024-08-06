@@ -8,7 +8,7 @@ import (
 	"os"
 	"path"
 	"time"
-	"ya-GophKeeper/internal/client/const/clerror"
+	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/content"
 )
 

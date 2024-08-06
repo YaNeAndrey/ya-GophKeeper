@@ -3,14 +3,15 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/backoff"
 	"github.com/Rican7/retry/strategy"
 	log "github.com/sirupsen/logrus"
 	"time"
+	"ya-GophKeeper/internal/constants/srverror"
 	"ya-GophKeeper/internal/constants/urlsuff"
 	"ya-GophKeeper/internal/content"
-	"ya-GophKeeper/internal/server/srverror"
 )
 
 type StorageDB struct {
@@ -99,8 +100,8 @@ func (st *StorageDB) CheckUserPassword(ctx context.Context, login string, passwo
 	err = db.QueryRowContext(ctx, "SELECT (case when (passwd = crypt($2, passwd)) then 'True' else 'False' end) as ok FROM Users WHERE login = $1", login, password).Scan(&passwdOK)
 
 	if err != nil {
-		switch err {
-		case sql.ErrNoRows:
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
 			return false, srverror.ErrLoginNotFound
 		default:
 			return false, err

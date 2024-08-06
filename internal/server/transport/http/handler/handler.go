@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"ya-GophKeeper/internal/constants/srverror"
 	"ya-GophKeeper/internal/constants/urlsuff"
 	"ya-GophKeeper/internal/content"
 	"ya-GophKeeper/internal/server/otp"
-	"ya-GophKeeper/internal/server/srverror"
 	"ya-GophKeeper/internal/server/storage"
 	"ya-GophKeeper/internal/server/transport/http/jwt"
 )
@@ -54,7 +54,7 @@ func RegistrationPOST(w http.ResponseWriter, r *http.Request, st storage.Storage
 func LoginWithPasswordPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
 	user, err := ReadAuthDate(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	ctx := context.Background()
@@ -84,7 +84,7 @@ func LoginWithPasswordPOST(w http.ResponseWriter, r *http.Request, st storage.St
 func LoginWithOTP_POST(w http.ResponseWriter, r *http.Request, m *otp.ManagerOTP) {
 	user, err := ReadAuthDate(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	loginOTP, err := strconv.Atoi(user.Password)
@@ -151,7 +151,7 @@ func RemoveDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 		}
 		RemoveFiles(files)
 	default:
-		http.Error(w, srverror.ErrIncorrectDataTpe.Error(), http.StatusBadRequest)
+		http.Error(w, srverror.ErrIncorrectDataTpe.Error(), http.StatusNotFound)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -184,7 +184,6 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 		}
 		respBody, err = json.Marshal(creds)
 		if err != nil {
-			log.Println(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -276,7 +275,7 @@ func SyncFirstStep(w http.ResponseWriter, r *http.Request, login string, dataTyp
 		}
 	}
 	var removeFromCli []int
-	for id, _ := range cliInfo {
+	for id := range cliInfo {
 		_, ok := srvInfo[id]
 		if !ok {
 			removeFromCli = append(removeFromCli, id)
@@ -361,6 +360,8 @@ func SyncSecondStep(w http.ResponseWriter, r *http.Request, login string, dataTy
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+	default:
+		http.Error(w, "", http.StatusNotFound)
 	}
 	w.WriteHeader(http.StatusOK)
 }

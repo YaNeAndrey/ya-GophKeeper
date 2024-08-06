@@ -10,3 +10,10 @@ var ErrCreditCardIncorrectChar = errors.New("credit card number contain incorrec
 var ErrIncorrectValueCVV = errors.New("CVV must be in range [100:999]")
 var ErrAllFieldsMustBeFulled = errors.New("all fields must be filled")
 var ErrIncorrectType = errors.New("use another type")
+var ErrHeaderWithAuthTokenIsEmpty = errors.New("server did not return an authorization token")
+var ErrLoginAlreadyTaken = errors.New("login already taken")
+
+var ErrInternalServerError = errors.New("internal server error")
+var ErrNotAuthorized = errors.New("not authorized request. try re-login")
+var ErrBadRequest = errors.New("bad request")
+var ErrStatusNotFound = errors.New("incorrect request url")

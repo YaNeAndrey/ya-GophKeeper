@@ -3,7 +3,7 @@ package storage
 import (
 	"fmt"
 	"time"
-	"ya-GophKeeper/internal/client/const/clerror"
+	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/content"
 )
 
@@ -273,7 +273,6 @@ func (c *Files) AddOrUpdateItems(newItemsSlice interface{}) error {
 		}
 	}
 	c.stored = append(c.stored, newItemsWithType...)
-	return nil
 	return nil
 }
 
