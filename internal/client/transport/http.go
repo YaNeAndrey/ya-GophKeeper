@@ -37,6 +37,9 @@ func (tr *TransportHTTP) Registration(ctx context.Context, userAutData UserInfo)
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationRegistration)
 	req, _ := http.NewRequest(http.MethodPost, reqURL, bodyReader)
 	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusConflict {
 		return clerror.ErrLoginAlreadyTaken
@@ -63,6 +66,9 @@ func (tr *TransportHTTP) Login(ctx context.Context, userAutData UserInfo, loginT
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationLogin, loginType)
 	req, _ := http.NewRequest(http.MethodPost, reqURL, bodyReader)
 	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -76,6 +82,18 @@ func (tr *TransportHTTP) Login(ctx context.Context, userAutData UserInfo, loginT
 	return nil
 }
 
+func (tr *TransportHTTP) ChangePassword(ctx context.Context, newLogin string) error {
+	fmt.Println("Send request")
+	for {
+		fmt.Println("Send request")
+	}
+	return nil
+}
+
+func (tr *TransportHTTP) GetOTP(ctx context.Context) (int, error) {
+	return 0, nil
+}
+
 func (tr *TransportHTTP) Sync(ctx context.Context, items storage.Collection) error {
 	client := http.Client{}
 	err := tr.SyncRemovedItems(ctx, items, &client)
@@ -86,10 +104,11 @@ func (tr *TransportHTTP) Sync(ctx context.Context, items storage.Collection) err
 	if err != nil {
 		return err
 	}
-	err = tr.SyncChangesFirstChange(ctx, items, &client)
+	err = tr.SyncChangesFirstStep(ctx, items, &client)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -187,7 +206,7 @@ func (tr *TransportHTTP) SyncNewItems(ctx context.Context, items storage.Collect
 	return nil
 }
 
-func (tr *TransportHTTP) SyncChangesFirstChange(ctx context.Context, items storage.Collection, client *http.Client) error {
+func (tr *TransportHTTP) SyncChangesFirstStep(ctx context.Context, items storage.Collection, client *http.Client) error {
 	IDsWithModtime := items.GetAllIDsWithModtime()
 	bodyJSON, err := json.Marshal(IDsWithModtime)
 	if err != nil {
@@ -237,10 +256,15 @@ func (tr *TransportHTTP) SyncChangesFirstChange(ctx context.Context, items stora
 	if err != nil {
 		return err
 	}
+
+	err = tr.SyncChangesSecondStep(ctx, items, srvAnswer.IDs, client)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
-func (tr *TransportHTTP) SyncChangesSecondChange(ctx context.Context, items storage.Collection, sendingItemsIDs []int, client *http.Client) error {
+func (tr *TransportHTTP) SyncChangesSecondStep(ctx context.Context, items storage.Collection, sendingItemsIDs []int, client *http.Client) error {
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationSync)
 
 	switch items.(type) {
@@ -266,6 +290,9 @@ func (tr *TransportHTTP) SyncChangesSecondChange(ctx context.Context, items stor
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("token", tr.jwtToken)
 	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return BadResponseHandler(resp, "From sync changes operation step two (Update)")

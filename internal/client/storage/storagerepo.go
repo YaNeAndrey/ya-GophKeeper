@@ -20,8 +20,8 @@ type StorageRepo interface {
 	UpdateFiles(index int, file *content.BinaryFileInfo) error
 	UpdateTexts(index int, text *content.TextInfo) error
 
-	GetCreditCardData() []content.CreditCardInfo
-	GetCredentials() []content.CredentialInfo
-	GetFilesData() []content.BinaryFileInfo
-	GetTextData() []content.TextInfo
+	GetCreditCardsData() *CreditCards
+	GetCredentialsData() *Credentials
+	GetFilesData() *Files
+	GetTextsData() *Texts
 }

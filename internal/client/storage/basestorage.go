@@ -208,17 +208,17 @@ func (st *BaseStorage) UpdateTexts(index int, text *content.TextInfo) error {
 	return nil
 }
 
-func (st *BaseStorage) GetCreditCardData() []content.CreditCardInfo {
-	return st.creditCards.stored
+func (st *BaseStorage) GetCreditCardsData() *CreditCards {
+	return &st.creditCards
 }
-func (st *BaseStorage) GetCredentials() []content.CredentialInfo {
-	return st.credentials.stored
+func (st *BaseStorage) GetCredentialsData() *Credentials {
+	return &st.credentials
 }
-func (st *BaseStorage) GetFilesData() []content.BinaryFileInfo {
-	return st.files.stored
+func (st *BaseStorage) GetFilesData() *Files {
+	return &st.files
 }
-func (st *BaseStorage) GetTextData() []content.TextInfo {
-	return st.texts.stored
+func (st *BaseStorage) GetTextsData() *Texts {
+	return &st.texts
 }
 
 func fileExists(filename string) bool {

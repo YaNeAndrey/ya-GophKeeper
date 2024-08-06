@@ -3,13 +3,17 @@ package client
 import (
 	"bufio"
 	"container/list"
+	"context"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+	"ya-GophKeeper/internal/client/storage"
+	"ya-GophKeeper/internal/client/transport"
 	"ya-GophKeeper/internal/constants/clerror"
+	"ya-GophKeeper/internal/constants/urlsuff"
 	"ya-GophKeeper/internal/content"
 )
 
@@ -18,24 +22,28 @@ func StartPage(c *Client) bool {
 	fmt.Println("2) Sign up")
 	fmt.Println("3) Exit")
 	choice := ReadOneLine()
+	var authOk bool
 	switch choice {
 	case "1":
-		RunConsoleFunc(c, LoginPage)
+		authOk = LoginPage(c)
 	case "2":
-		RunConsoleFunc(c, RegistrationPage)
+		authOk = RegistrationPage(c)
 	case "3":
 		return false
-	case "4":
-		RunConsoleFunc(c, MainPage)
+	//case "4":
+	//	RunConsoleFunc(c, MainPage)
 	default:
 		fmt.Println("Incorrect input")
+	}
+	if authOk {
+		RunConsoleFunc(c, MainPage)
 	}
 	return true
 }
 
 func MainPage(c *Client) bool {
 	fmt.Println("Main page: ")
-	fmt.Println("1) Add new information page")
+	fmt.Println("1) Add information page")
 	fmt.Println("2) Update information page")
 	fmt.Println("3) Remove information page")
 	fmt.Println("4) Print information page")
@@ -58,15 +66,15 @@ func MainPage(c *Client) bool {
 	case "5":
 		RunConsoleFunc(c, Synchronization)
 	case "6":
-		//Get OTP
+		GetOTP(c)
 	case "7":
-		RunConsoleFunc(c, LoginPage)
+		return false
 	case "8":
-		//Change password
+		ChangePassword(c)
 	case "9":
 		PrintHelpAndInformation(c)
 	case "10":
-		return false
+		os.Exit(0)
 	default:
 		fmt.Println("Incorrect input")
 	}
@@ -81,7 +89,9 @@ func LoginPage(c *Client) bool {
 	answer := ReadOneLine()
 	switch answer {
 	case "1":
+		RunConsoleFunc(c, AuthorizationPassword)
 	case "2":
+		RunConsoleFunc(c, AuthorizationOTP)
 	case "3":
 		return false
 	}
@@ -96,7 +106,12 @@ func RegistrationPage(c *Client) bool {
 	_ = newUserLogin
 	return false
 }
-
+func ChangePassword(c *Client) bool {
+	fmt.Println("New password: ")
+	passwd := ReadOneLine()
+	_ = passwd
+	return true
+}
 func UpdatePage(c *Client) bool {
 	fmt.Println("Update page: ")
 	fmt.Println("1) Update credential")
@@ -500,44 +515,151 @@ func ReadText() (int, *content.TextInfo, error) {
 }
 
 func Synchronization(c *Client) bool {
-	return false
+	fmt.Println("Synchronization page: ")
+	fmt.Println("1) Sync credential")
+	fmt.Println("2) Sync credit card")
+	fmt.Println("3) Sync texts")
+	fmt.Println("4) Sync files")
+	fmt.Println("5) Full sync")
+	fmt.Println("6) Return to previous page")
+	answer := ReadOneLine()
+
+	var collection storage.Collection
+	switch answer {
+	case "1":
+		collection = c.storage.GetCredentialsData()
+	case "2":
+		collection = c.storage.GetCreditCardsData()
+	case "3":
+		collection = c.storage.GetTextsData()
+	case "4":
+		collection = c.storage.GetFilesData()
+	case "5":
+		SyncCollection(c, c.storage.GetCredentialsData())
+		SyncCollection(c, c.storage.GetCreditCardsData())
+		SyncCollection(c, c.storage.GetTextsData())
+		SyncCollection(c, c.storage.GetFilesData())
+
+	case "6":
+		return false
+	default:
+		fmt.Println("Incorrect input")
+		return true
+	}
+	err := SyncCollection(c, collection)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+	return true
+}
+
+func SyncCollection(c *Client, collection storage.Collection) error {
+	err := c.transport.Sync(context.Background(), collection)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func PrintCreditCards(c *Client) bool {
 	fmt.Println("*******************************************")
 	fmt.Println("Credit cards:")
-	for i, card := range c.storage.GetCreditCardData() {
-		fmt.Printf("%d) %s", i, card.String())
+	cardsInfo := c.storage.GetCreditCardsData()
+	cards := cardsInfo.GetItems(nil)
+	switch t := cards.(type) {
+	case []content.CreditCardInfo:
+		for i, card := range t {
+			fmt.Printf("%d) %s", i, card.String())
+		}
 	}
 	return false
 }
+
 func PrintFiles(c *Client) bool {
 	fmt.Println("*******************************************")
 	fmt.Println("Files:")
-	for i, file := range c.storage.GetFilesData() {
-		fmt.Printf("%d) %s", i, file.String())
+
+	filesInfo := c.storage.GetFilesData()
+	files := filesInfo.GetItems(nil)
+	switch t := files.(type) {
+	case []content.BinaryFileInfo:
+		for i, file := range t {
+			fmt.Printf("%d) %s", i, file.String())
+		}
 	}
 	return false
 }
 func PrintTexts(c *Client) bool {
 	fmt.Println("*******************************************")
 	fmt.Println("Texts:")
-	for i, text := range c.storage.GetTextData() {
-		fmt.Printf("%d) %s", i, text.String())
+
+	textsInfo := c.storage.GetTextsData()
+	texts := textsInfo.GetItems(nil)
+	switch t := texts.(type) {
+	case []content.TextInfo:
+		for i, text := range t {
+			fmt.Printf("%d) %s", i, text.String())
+		}
 	}
 	return false
 }
 func PrintCredentials(c *Client) bool {
 	fmt.Println("*******************************************")
 	fmt.Println("Credentials:")
-	for i, cred := range c.storage.GetCredentials() {
-		fmt.Printf("%d) %s", i, cred.String())
+	credsInfo := c.storage.GetCredentialsData()
+	creds := credsInfo.GetItems(nil)
+	switch t := creds.(type) {
+	case []content.CredentialInfo:
+		for i, cred := range t {
+			fmt.Printf("%d) %s", i, cred.String())
+		}
 	}
 	return false
 }
 
-func GetOTP(c *Client) string {
-	return ""
+func GetOTP(c *Client) {
+	otp, err := c.transport.GetOTP(context.Background())
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Printf("OTP: %d", otp)
+}
+
+func AuthorizationPassword(c *Client) bool {
+	fmt.Println("Login: ")
+	login := ReadOneLine()
+	fmt.Println("Password: ")
+	passwd := ReadOneLine()
+
+	err := c.transport.Login(context.Background(), transport.UserInfo{
+		Login:    login,
+		Password: passwd,
+	}, urlsuff.LoginTypePasswd)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+	_ = login
+	_ = passwd
+
+	return false
+}
+
+func AuthorizationOTP(c *Client) bool {
+	fmt.Println("Login: ")
+	login := ReadOneLine()
+	fmt.Println("OTP: ")
+	otp := ReadOneLine()
+	err := c.transport.Login(context.Background(), transport.UserInfo{
+		Login:    login,
+		Password: otp,
+	}, urlsuff.LoginTypePasswd)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+	return true
 }
 
 func PrintHelpAndInformation(c *Client) bool {
@@ -609,7 +731,6 @@ func CheckCardNumberWithLuhn(cardNumberStr string) error {
 		return clerror.ErrCreditCardLuhn
 	}
 }
-
 func CheckCVV(cvvStr string) error {
 	cvv, err := strconv.Atoi(cvvStr)
 	if err != nil {

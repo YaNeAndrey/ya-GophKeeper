@@ -69,13 +69,16 @@ func (c *CreditCards) AddOrUpdateItems(newItemsSlice interface{}) error {
 }
 
 func (c *CreditCards) GetAllIDsWithModtime() map[int]time.Time {
-	var res map[int]time.Time
+	res := make(map[int]time.Time)
 	for _, item := range c.stored {
 		res[item.ID] = item.ModificationTime
 	}
 	return res
 }
 func (c *CreditCards) GetItems(IDs []int) interface{} {
+	if IDs == nil {
+		return c.stored
+	}
 	var items []content.CreditCardInfo
 	for _, item := range c.stored {
 		for _, id := range IDs {
@@ -138,13 +141,16 @@ func (c *Credentials) AddOrUpdateItems(newItemsSlice interface{}) error {
 }
 
 func (c *Credentials) GetAllIDsWithModtime() map[int]time.Time {
-	var res map[int]time.Time
+	res := make(map[int]time.Time)
 	for _, item := range c.stored {
 		res[item.ID] = item.ModificationTime
 	}
 	return res
 }
 func (c *Credentials) GetItems(IDs []int) interface{} {
+	if IDs == nil {
+		return c.stored
+	}
 	var items []content.CredentialInfo
 	for _, item := range c.stored {
 		for _, id := range IDs {
@@ -207,13 +213,16 @@ func (c *Texts) AddOrUpdateItems(newItemsSlice interface{}) error {
 }
 
 func (c *Texts) GetAllIDsWithModtime() map[int]time.Time {
-	var res map[int]time.Time
+	res := make(map[int]time.Time)
 	for _, item := range c.stored {
 		res[item.ID] = item.ModificationTime
 	}
 	return res
 }
 func (c *Texts) GetItems(IDs []int) interface{} {
+	if IDs == nil {
+		return c.stored
+	}
 	var items []content.TextInfo
 	for _, item := range c.stored {
 		for _, id := range IDs {
@@ -277,13 +286,16 @@ func (c *Files) AddOrUpdateItems(newItemsSlice interface{}) error {
 }
 
 func (c *Files) GetAllIDsWithModtime() map[int]time.Time {
-	var res map[int]time.Time
+	res := make(map[int]time.Time)
 	for _, item := range c.stored {
 		res[item.ID] = item.ModificationTime
 	}
 	return res
 }
 func (c *Files) GetItems(IDs []int) interface{} {
+	if IDs == nil {
+		return c.stored
+	}
 	var items []content.BinaryFileInfo
 	for _, item := range c.stored {
 		for _, id := range IDs {
