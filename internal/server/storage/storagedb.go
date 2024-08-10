@@ -7,6 +7,9 @@ import (
 	"github.com/Rican7/retry"
 	"github.com/Rican7/retry/backoff"
 	"github.com/Rican7/retry/strategy"
+	_ "github.com/jackc/pgx/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
 	"time"
 	"ya-GophKeeper/internal/constants/srverror"
@@ -18,10 +21,11 @@ type StorageDB struct {
 	connectionString string
 }
 
-func InitStorageDB(connectionString string) (*StorageDB, error) {
+func InitStorageDB(connectionString string) *StorageDB {
 	db, err := TryToOpenDBConnection(connectionString)
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return nil
 	}
 	defer db.Close()
 
@@ -29,44 +33,53 @@ func InitStorageDB(connectionString string) (*StorageDB, error) {
 
 	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Users(ID_User serial PRIMARY KEY, login VARCHAR(256) NOT NULL, passwd TEXT NOT NULL);")
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return nil
 	}
 	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Credentials(ID_Credential serial PRIMARY KEY, resource VARCHAR(256), login VARCHAR(256), passwd TEXT, modification_time timestamp);")
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return nil
 	}
 	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Users_Credentials(ID_User_Credentials serial PRIMARY KEY, ID_User int REFERENCES Users(ID_User), ID_Credential int REFERENCES Credentials(ID_Credential));")
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return nil
 	}
 	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS CreditCards( ID_CreditCard serial PRIMARY KEY, bank varchar(50), card_number varchar(16) NOT NULL, valid_thru timestamp, cvv varchar(3),  modification_time timestamp);")
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return nil
 	}
 	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Users_CreditCards(ID_User_CreditCard serial PRIMARY KEY, ID_User int REFERENCES Users(ID_User), ID_CreditCard int REFERENCES CreditCards(ID_CreditCard));")
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return nil
 	}
 	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Texts(ID_Text serial PRIMARY KEY, description TEXT, content TEXT NOT NULL, modification_time timestamp);")
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return nil
 	}
 	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Users_Texts(ID_User_Text serial PRIMARY KEY, ID_User int REFERENCES Users(ID_User), ID_Text int REFERENCES Texts(ID_Text));")
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return nil
 	}
 	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Files(ID_File serial PRIMARY KEY, description TEXT, file_name varchar(256) NOT NULL, file_path varchar(256) NOT NULL, file_size int NOT NULL, modification_time timestamp);")
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return nil
 	}
 	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Users_Files(ID_User_File serial PRIMARY KEY, ID_User int REFERENCES Users(ID_User), ID_File int REFERENCES Files(ID_File));")
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return nil
 	}
 
 	var resStorage StorageDB
 	resStorage.connectionString = connectionString
-	return &resStorage, nil
+	return &resStorage
 }
 
 func (st *StorageDB) AddNewUser(ctx context.Context, login string, password string) error {
@@ -188,16 +201,17 @@ func (st *StorageDB) RemoveCreditCards(ctx context.Context, login string, credit
 	}
 
 	for _, cardID := range creditCardIDs {
-		_, err = db.ExecContext(ctx, "DELETE FROM CreditCards where ID_CreditCard == $1", cardID)
+		_, err = db.ExecContext(ctx, "DELETE FROM Users_CreditCards where ID_CreditCard = $1 and ID_User = $2", cardID, userID)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		_, err = db.ExecContext(ctx, "DELETE FROM Users_CreditCards where ID_CreditCard == $1 and ID_User == $2", cardID, userID)
+		_, err = db.ExecContext(ctx, "DELETE FROM CreditCards where ID_CreditCard = $1", cardID)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
+
 	}
 	return nil
 }
@@ -259,7 +273,7 @@ func (st *StorageDB) UpdateCreditCards(ctx context.Context, login string, credit
 	}
 
 	for _, card := range creditCards {
-		_, err = db.ExecContext(ctx, "UPDATE CreditCards SET bank = $2, card_number = $3, valid_thru = $4,cvv = $5, modification_time = $6 WHERE id_creditcard == $1", card.ID, card.Bank, card.CardNumber, card.ValidThru, card.CVV, card.ModificationTime)
+		_, err = db.ExecContext(ctx, "UPDATE CreditCards SET bank = $2, card_number = $3, valid_thru = $4,cvv = $5, modification_time = $6 WHERE id_creditcard = $1", card.ID, card.Bank, card.CardNumber, card.ValidThru, card.CVV, card.ModificationTime)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -284,7 +298,37 @@ func (st *StorageDB) UpdateCredentials(ctx context.Context, login string, creden
 }
 
 func (st *StorageDB) GetCreditCards(ctx context.Context, login string, cardIDs []int) ([]content.CreditCardInfo, error) {
-	return nil, nil
+	if cardIDs == nil {
+		return nil, nil
+	}
+	db, err := TryToOpenDBConnection(st.connectionString)
+	if err != nil {
+		return nil, err
+	}
+	var userID int
+	err = db.QueryRowContext(ctx, "SELECT id_user FROM Users WHERE login = $1", login).Scan(&userID)
+	if err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			return nil, srverror.ErrLoginNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	var rows *sql.Rows
+	rows, err = db.QueryContext(ctx, "SELECT creditcards.id_creditcard,creditcards.bank,CreditCards.card_number,CreditCards.cvv,CreditCards.valid_thru,CreditCards.modification_time FROM creditcards JOIN users_creditcards on creditcards.id_creditcard = users_creditcards.ID_CreditCard WHERE Users_CreditCards.id_user = $1 and creditcards.id_creditcard = any($2)", userID, pq.Array(cardIDs))
+
+	var res []content.CreditCardInfo
+	for rows.Next() {
+		var r content.CreditCardInfo
+		err = rows.Scan(&r.ID, &r.Bank, &r.CardNumber, &r.CVV, &r.ValidThru, &r.ModificationTime)
+		if err != nil {
+			break
+		}
+		res = append(res, r)
+	}
+	return res, nil
 }
 func (st *StorageDB) GetCredentials(ctx context.Context, login string, credIDs []int) ([]content.CredentialInfo, error) {
 	return nil, nil
@@ -302,7 +346,7 @@ func (st *StorageDB) GetModtimeWithIDs(ctx context.Context, login string, dataTy
 		return nil, err
 	}
 	var userID int
-	err = db.QueryRowContext(ctx, "SELECT id_credential,modification_time FROM credentials WHERE login = $1", login).Scan(&userID)
+	err = db.QueryRowContext(ctx, "SELECT id_user FROM Users WHERE login = $1", login).Scan(&userID)
 	if err != nil {
 		switch err {
 		case sql.ErrNoRows:
@@ -318,7 +362,7 @@ func (st *StorageDB) GetModtimeWithIDs(ctx context.Context, login string, dataTy
 	case urlsuff.DatatypeCredential:
 		rows, err = db.QueryContext(ctx, "SELECT credentials.id_credential,modification_time FROM credentials JOIN users_credentials on credentials.id_credential = users_credentials.id_credential WHERE users_credentials.id_user = $1", userID)
 	case urlsuff.DatatypeCreditCard:
-		rows, err = db.QueryContext(ctx, "SELECT creditcards.id_creditcard,modification_time FROM creditcards JOIN users_credentials on creditcards.id_creditcard = users_credentials.id_credential WHERE users_credentials.id_user = $1", userID)
+		rows, err = db.QueryContext(ctx, "SELECT creditcards.id_creditcard,modification_time FROM creditcards JOIN users_creditcards on creditcards.id_creditcard = users_creditcards.ID_CreditCard WHERE Users_CreditCards.id_user = $1", userID)
 	case urlsuff.DatatypeText:
 		rows, err = db.QueryContext(ctx, "SELECT texts.id_text,modification_time FROM texts JOIN users_texts on texts.id_text = users_texts.id_text WHERE users_texts.id_user = $1", userID)
 	case urlsuff.DatatypeFile:
@@ -336,7 +380,7 @@ func (st *StorageDB) GetModtimeWithIDs(ctx context.Context, login string, dataTy
 		modtime time.Time
 	}
 
-	var res map[int]time.Time
+	res := make(map[int]time.Time)
 	for rows.Next() {
 		var r row
 		err = rows.Scan(&r.ID, &r.modtime)

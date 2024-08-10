@@ -8,10 +8,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"ya-GophKeeper/internal/client/storage"
 	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/constants/urlsuff"
-	"ya-GophKeeper/internal/content"
 )
 
 type TransportHTTP struct {
@@ -47,12 +47,15 @@ func (tr *TransportHTTP) Registration(ctx context.Context, userAutData UserInfo)
 	if resp.StatusCode != http.StatusOK {
 		return BadResponseHandler(resp, "From registration")
 	}
-
-	jwtToken := resp.Header.Get("token")
-	if jwtToken == "" {
-		return clerror.ErrHeaderWithAuthTokenIsEmpty
+	cookies := resp.Cookies()
+	for _, cookie := range cookies {
+		if cookie.Name == "token" {
+			tr.jwtToken = cookie.Value
+		}
 	}
-	tr.jwtToken = jwtToken
+	if tr.jwtToken == "" {
+		return clerror.ErrAuthTokenIsEmpty
+	}
 	return nil
 }
 
@@ -71,14 +74,21 @@ func (tr *TransportHTTP) Login(ctx context.Context, userAutData UserInfo, loginT
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized && resp.ContentLength == 0 {
+		return clerror.ErrIncorrectPassword
+	}
 	if resp.StatusCode != http.StatusOK {
 		return BadResponseHandler(resp, "From login operation")
 	}
-	jwtToken := resp.Header.Get("token")
-	if jwtToken == "" {
-		return clerror.ErrHeaderWithAuthTokenIsEmpty
+	cookies := resp.Cookies()
+	for _, cookie := range cookies {
+		if cookie.Name == "token" {
+			tr.jwtToken = cookie.Value
+		}
 	}
-	tr.jwtToken = jwtToken
+	if tr.jwtToken == "" {
+		return clerror.ErrAuthTokenIsEmpty
+	}
 	return nil
 }
 
@@ -138,7 +148,10 @@ func (tr *TransportHTTP) SyncRemovedItems(ctx context.Context, items storage.Col
 	}
 	req, _ = http.NewRequest(http.MethodPost, reqURL, bodyReader)
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("token", tr.jwtToken)
+	req.AddCookie(&http.Cookie{
+		Name:  "token",
+		Value: tr.jwtToken,
+	})
 	//add another Headers
 
 	resp, err := client.Do(req)
@@ -154,20 +167,23 @@ func (tr *TransportHTTP) SyncRemovedItems(ctx context.Context, items storage.Col
 }
 
 func (tr *TransportHTTP) SyncNewItems(ctx context.Context, items storage.Collection, client *http.Client) error {
+	newItems := items.GetNewItems()
+	if newItems == nil || (reflect.ValueOf(newItems).Kind() == reflect.Ptr && reflect.ValueOf(newItems).IsNil()) {
+		return nil
+	}
+	if reflect.ValueOf(newItems).IsNil() {
+		return nil
+	}
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationInsertNew)
-	srvAnswer := struct {
-		Items interface{}
-	}{}
+	var srvAnswer interface{}
+
 	switch items.(type) {
 	case *storage.Credentials:
 		reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeCredential)
-		srvAnswer.Items = []content.CredentialInfo{}
 	case *storage.CreditCards:
 		reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeCreditCard)
-		srvAnswer.Items = []content.CreditCardInfo{}
 	case *storage.Texts:
 		reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeText)
-		srvAnswer.Items = []content.TextInfo{}
 	case *storage.Files:
 		reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeFile)
 		//return SyncFiles()
@@ -175,8 +191,6 @@ func (tr *TransportHTTP) SyncNewItems(ctx context.Context, items storage.Collect
 	default:
 		return fmt.Errorf("SyncNewItems(TransportHTTP) %s", clerror.ErrIncorrectType)
 	}
-
-	newItems := items.GetNewItems()
 	bodyJSON, err := json.Marshal(newItems)
 	if err != nil {
 		return err
@@ -185,7 +199,11 @@ func (tr *TransportHTTP) SyncNewItems(ctx context.Context, items storage.Collect
 	var req *http.Request
 	req, _ = http.NewRequest(http.MethodPost, reqURL, bodyReader)
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("token", tr.jwtToken)
+	req.AddCookie(&http.Cookie{
+		Name:  "token",
+		Value: tr.jwtToken,
+	})
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -199,7 +217,7 @@ func (tr *TransportHTTP) SyncNewItems(ctx context.Context, items storage.Collect
 		return err
 	}
 	items.RemoveItemsWithoutID()
-	err = items.AddOrUpdateItems(srvAnswer.Items)
+	err = items.AddOrUpdateItems(srvAnswer)
 	if err != nil {
 		return err
 	}
@@ -216,29 +234,29 @@ func (tr *TransportHTTP) SyncChangesFirstStep(ctx context.Context, items storage
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationSync)
 	var req *http.Request
 	srvAnswer := struct {
-		IDs   []int
-		Items interface{}
+		DataForSrv    []int       `json:",omitempty"`
+		RemoveFromCli []int       `json:",omitempty"`
+		DataForCli    interface{} `json:",omitempty"`
 	}{}
 	switch items.(type) {
 	case *storage.Credentials:
 		reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeCredential)
-		srvAnswer.Items = []content.CredentialInfo{}
 	case *storage.CreditCards:
 		reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeCreditCard)
-		srvAnswer.Items = []content.CreditCardInfo{}
 	case *storage.Texts:
 		reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeText)
-		srvAnswer.Items = []content.TextInfo{}
 	case *storage.Files:
 		reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeFile)
-		srvAnswer.Items = []content.BinaryFileInfo{}
 	default:
 		return fmt.Errorf("SyncChangesFirstStep(TransportHTTP) %s", clerror.ErrIncorrectType)
 	}
+	reqURL, _ = url.JoinPath(reqURL, "1")
 	req, _ = http.NewRequest(http.MethodPost, reqURL, bodyReader)
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("token", tr.jwtToken)
-	reqURL, _ = url.JoinPath(reqURL, "1")
+	req.AddCookie(&http.Cookie{
+		Name:  "token",
+		Value: tr.jwtToken,
+	})
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -252,12 +270,18 @@ func (tr *TransportHTTP) SyncChangesFirstStep(ctx context.Context, items storage
 	if err != nil {
 		return err
 	}
-	err = items.AddOrUpdateItems(srvAnswer.Items)
+	err = items.AddOrUpdateItems(srvAnswer.DataForCli)
 	if err != nil {
 		return err
 	}
+	if srvAnswer.RemoveFromCli != nil {
+		items.RemoveItems(srvAnswer.RemoveFromCli)
+	}
 
-	err = tr.SyncChangesSecondStep(ctx, items, srvAnswer.IDs, client)
+	if srvAnswer.DataForSrv == nil {
+		return nil
+	}
+	err = tr.SyncChangesSecondStep(ctx, items, srvAnswer.DataForSrv, client)
 	if err != nil {
 		return err
 	}
@@ -284,11 +308,14 @@ func (tr *TransportHTTP) SyncChangesSecondStep(ctx context.Context, items storag
 	if err != nil {
 		return err
 	}
-	reqURL, _ = url.JoinPath(tr.srvAddr, "2")
+	reqURL, _ = url.JoinPath(reqURL, "2")
 	bodyReader := bytes.NewReader(bodyJSON)
 	req, _ := http.NewRequest(http.MethodPost, reqURL, bodyReader)
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("token", tr.jwtToken)
+	req.AddCookie(&http.Cookie{
+		Name:  "token",
+		Value: tr.jwtToken,
+	})
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

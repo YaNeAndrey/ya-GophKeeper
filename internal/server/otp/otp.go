@@ -11,6 +11,12 @@ type ManagerOTP struct {
 	mutex    sync.Mutex
 }
 
+func InitManagerOTP() *ManagerOTP {
+	return &ManagerOTP{
+		usersOTP: make(map[string]int),
+	}
+}
+
 func (m *ManagerOTP) GenerateOTP(login string) (int, error) {
 	r, err := rand.Int(rand.Reader, big.NewInt(9000))
 	if err != nil {

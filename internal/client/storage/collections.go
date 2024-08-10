@@ -1,9 +1,8 @@
 package storage
 
 import (
-	"fmt"
+	"encoding/json"
 	"time"
-	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/content"
 )
 
@@ -17,6 +16,7 @@ type Collection interface {
 
 	GetAllIDsWithModtime() map[int]time.Time
 	GetItems([]int) interface{}
+	RemoveItems([]int)
 }
 
 type CreditCards struct {
@@ -51,15 +51,21 @@ func (c *CreditCards) RemoveItemsWithoutID() {
 	c.stored = newStored
 }
 func (c *CreditCards) AddOrUpdateItems(newItemsSlice interface{}) error {
-	newItemsWithType, ok := newItemsSlice.([]content.CreditCardInfo)
-	if !ok {
-		return fmt.Errorf("AddItem(CreditCards) : %s. Need: %s", clerror.ErrIncorrectType, "[]content.CreditCardInfo")
+	var newItemsWithType []content.CreditCardInfo
+	jsonbody, err := json.Marshal(newItemsSlice)
+	if err != nil {
+		// do error check
+		return err
 	}
+	if err = json.Unmarshal(jsonbody, &newItemsWithType); err != nil {
+		return err
+	}
+
 	for i := range c.stored {
 		for j := range newItemsWithType {
 			if c.stored[i].ID == newItemsWithType[j].ID {
 				c.stored[i] = newItemsWithType[j]
-				newItemsWithType = append(newItemsWithType[:i], newItemsWithType[i+1:]...)
+				newItemsWithType = append(newItemsWithType[:j], newItemsWithType[j+1:]...)
 				break
 			}
 		}
@@ -89,6 +95,22 @@ func (c *CreditCards) GetItems(IDs []int) interface{} {
 		}
 	}
 	return items
+}
+func (c *CreditCards) RemoveItems(IDs []int) {
+	var newStored []content.CreditCardInfo
+	for _, item := range c.stored {
+		ok := true
+		for _, id := range IDs {
+			if item.ID == id {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			newStored = append(newStored, item)
+		}
+	}
+	c.stored = newStored
 }
 
 type Credentials struct {
@@ -123,15 +145,21 @@ func (c *Credentials) RemoveItemsWithoutID() {
 	c.stored = newStored
 }
 func (c *Credentials) AddOrUpdateItems(newItemsSlice interface{}) error {
-	newItemsWithType, ok := newItemsSlice.([]content.CredentialInfo)
-	if !ok {
-		return fmt.Errorf("AddItem(CreditCards) : %s. Need: %s", clerror.ErrIncorrectType, "[]content.CreditCardInfo")
+	var newItemsWithType []content.CredentialInfo
+	jsonbody, err := json.Marshal(newItemsSlice)
+	if err != nil {
+		// do error check
+		return err
 	}
+	if err = json.Unmarshal(jsonbody, &newItemsWithType); err != nil {
+		return err
+	}
+
 	for i := range c.stored {
 		for j := range newItemsWithType {
 			if c.stored[i].ID == newItemsWithType[j].ID {
 				c.stored[i] = newItemsWithType[j]
-				newItemsWithType = append(newItemsWithType[:i], newItemsWithType[i+1:]...)
+				newItemsWithType = append(newItemsWithType[:j], newItemsWithType[j+1:]...)
 				break
 			}
 		}
@@ -161,6 +189,22 @@ func (c *Credentials) GetItems(IDs []int) interface{} {
 		}
 	}
 	return items
+}
+func (c *Credentials) RemoveItems(IDs []int) {
+	var newStored []content.CredentialInfo
+	for _, item := range c.stored {
+		ok := true
+		for _, id := range IDs {
+			if item.ID == id {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			newStored = append(newStored, item)
+		}
+	}
+	c.stored = newStored
 }
 
 type Texts struct {
@@ -195,15 +239,21 @@ func (c *Texts) RemoveItemsWithoutID() {
 	c.stored = newStored
 }
 func (c *Texts) AddOrUpdateItems(newItemsSlice interface{}) error {
-	newItemsWithType, ok := newItemsSlice.([]content.TextInfo)
-	if !ok {
-		return fmt.Errorf("AddItem(CreditCards) : %s. Need: %s", clerror.ErrIncorrectType, "[]content.CreditCardInfo")
+	var newItemsWithType []content.TextInfo
+	jsonbody, err := json.Marshal(newItemsSlice)
+	if err != nil {
+		// do error check
+		return err
 	}
+	if err = json.Unmarshal(jsonbody, &newItemsWithType); err != nil {
+		return err
+	}
+
 	for i := range c.stored {
 		for j := range newItemsWithType {
 			if c.stored[i].ID == newItemsWithType[j].ID {
 				c.stored[i] = newItemsWithType[j]
-				newItemsWithType = append(newItemsWithType[:i], newItemsWithType[i+1:]...)
+				newItemsWithType = append(newItemsWithType[:j], newItemsWithType[j+1:]...)
 				break
 			}
 		}
@@ -233,6 +283,22 @@ func (c *Texts) GetItems(IDs []int) interface{} {
 		}
 	}
 	return items
+}
+func (c *Texts) RemoveItems(IDs []int) {
+	var newStored []content.TextInfo
+	for _, item := range c.stored {
+		ok := true
+		for _, id := range IDs {
+			if item.ID == id {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			newStored = append(newStored, item)
+		}
+	}
+	c.stored = newStored
 }
 
 type Files struct {
@@ -268,15 +334,21 @@ func (c *Files) RemoveItemsWithoutID() {
 	c.stored = newStored
 }
 func (c *Files) AddOrUpdateItems(newItemsSlice interface{}) error {
-	newItemsWithType, ok := newItemsSlice.([]content.BinaryFileInfo)
-	if !ok {
-		return fmt.Errorf("AddItem(CreditCards) : %s. Need: %s", clerror.ErrIncorrectType, "[]content.CreditCardInfo")
+	var newItemsWithType []content.BinaryFileInfo
+	jsonbody, err := json.Marshal(newItemsSlice)
+	if err != nil {
+		// do error check
+		return err
 	}
+	if err = json.Unmarshal(jsonbody, &newItemsWithType); err != nil {
+		return err
+	}
+
 	for i := range c.stored {
 		for j := range newItemsWithType {
 			if c.stored[i].ID == newItemsWithType[j].ID {
 				c.stored[i] = newItemsWithType[j]
-				newItemsWithType = append(newItemsWithType[:i], newItemsWithType[i+1:]...)
+				newItemsWithType = append(newItemsWithType[:j], newItemsWithType[j+1:]...)
 				break
 			}
 		}
@@ -306,4 +378,20 @@ func (c *Files) GetItems(IDs []int) interface{} {
 		}
 	}
 	return items
+}
+func (c *Files) RemoveItems(IDs []int) {
+	var newStored []content.BinaryFileInfo
+	for _, item := range c.stored {
+		ok := true
+		for _, id := range IDs {
+			if item.ID == id {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			newStored = append(newStored, item)
+		}
+	}
+	c.stored = newStored
 }

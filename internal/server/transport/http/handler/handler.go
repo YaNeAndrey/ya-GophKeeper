@@ -223,7 +223,6 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
 }
 
 func AddNewFilePOST() {
@@ -231,7 +230,6 @@ func AddNewFilePOST() {
 
 func SyncDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
 	claims, ok := jwt.CheckAccess(r)
-	_ = claims
 	if !ok {
 		http.Error(w, "", http.StatusUnauthorized)
 		return
@@ -284,22 +282,25 @@ func SyncFirstStep(w http.ResponseWriter, r *http.Request, login string, dataTyp
 	}
 
 	answer := struct {
-		dataForSrv    []int
-		removeFromCli []int
-		dataForCli    interface{}
-	}{dataForSrv: dataForSrv,
-		removeFromCli: removeFromCli}
+		DataForSrv    []int       `json:",omitempty"`
+		RemoveFromCli []int       `json:",omitempty"`
+		DataForCli    interface{} `json:",omitempty"`
+	}{DataForSrv: dataForSrv,
+		RemoveFromCli: removeFromCli}
 	switch dataType {
 	case urlsuff.DatatypeCredential:
-		answer.dataForCli, err = st.GetCredentials(ctx, login, sendToCli)
+		answer.DataForCli, err = st.GetCredentials(ctx, login, sendToCli)
 	case urlsuff.DatatypeCreditCard:
-		answer.dataForCli, err = st.GetCreditCards(ctx, login, sendToCli)
+		answer.DataForCli, err = st.GetCreditCards(ctx, login, sendToCli)
 	case urlsuff.DatatypeText:
-		answer.dataForCli, err = st.GetTexts(ctx, login, sendToCli)
+		answer.DataForCli, err = st.GetTexts(ctx, login, sendToCli)
 	case urlsuff.DatatypeFile:
-		answer.dataForCli, err = st.GetFiles(ctx, login, sendToCli)
+		answer.DataForCli, err = st.GetFiles(ctx, login, sendToCli)
 	}
+	//m := zson.NewMarshaler()
+	//respBody, err := m.Marshal(answer)
 	respBody, err := json.Marshal(answer)
+	//log.Println(respBody)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -309,7 +310,6 @@ func SyncFirstStep(w http.ResponseWriter, r *http.Request, login string, dataTyp
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
 }
 func SyncSecondStep(w http.ResponseWriter, r *http.Request, login string, dataType string, st storage.StorageRepo) {
 	if r.Header.Get("Content-Type") != "application/json" {
@@ -363,7 +363,6 @@ func SyncSecondStep(w http.ResponseWriter, r *http.Request, login string, dataTy
 	default:
 		http.Error(w, "", http.StatusNotFound)
 	}
-	w.WriteHeader(http.StatusOK)
 }
 
 func GenerateOTP_GET(w http.ResponseWriter, r *http.Request, m *otp.ManagerOTP) {

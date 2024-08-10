@@ -7,6 +7,6 @@ import (
 )
 
 func main() {
-	myClient := client.NewClient(nil, storage.StorageRepo(storage.NewBaseStorage("temp")), transport.Transport(transport.InitTransport("http://localhost")))
+	myClient := client.NewClient(nil, storage.StorageRepo(storage.NewBaseStorage("temp")), transport.Transport(transport.InitTransport("http://localhost:8080")))
 	myClient.Start()
 }

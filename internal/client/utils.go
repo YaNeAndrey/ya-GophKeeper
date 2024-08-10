@@ -453,7 +453,7 @@ func ReadCreditCard() (int, *content.CreditCardInfo, error) {
 	validThruStr := ReadOneLine()
 	var validThru time.Time
 	if validThruStr != "" {
-		validThru, err = time.Parse("01/02/2006", validThruStr)
+		validThru, err = time.Parse("02.01.2006", validThruStr)
 		if err != nil {
 			errorsList.PushBack(err)
 		}
@@ -637,11 +637,9 @@ func AuthorizationPassword(c *Client) bool {
 		Password: passwd,
 	}, urlsuff.LoginTypePasswd)
 	if err != nil {
-		log.Println(err)
-		return false
+		fmt.Printf("Authorization problem. Try again! Err: %s\r\n", err.Error())
+		return true
 	}
-	_ = login
-	_ = passwd
 
 	return false
 }
@@ -656,8 +654,8 @@ func AuthorizationOTP(c *Client) bool {
 		Password: otp,
 	}, urlsuff.LoginTypePasswd)
 	if err != nil {
-		log.Println(err)
-		return false
+		fmt.Printf("Authorization problem. Try again! Err: %s", err.Error())
+		return true
 	}
 	return true
 }
