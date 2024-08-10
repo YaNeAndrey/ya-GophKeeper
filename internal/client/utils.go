@@ -18,6 +18,7 @@ import (
 )
 
 func StartPage(c *Client) bool {
+	c.storage.Clear()
 	fmt.Println("1) Sign in")
 	fmt.Println("2) Sign up")
 	fmt.Println("3) Exit")
@@ -102,8 +103,15 @@ func RegistrationPage(c *Client) bool {
 	newUserLogin := ReadOneLine()
 	fmt.Println("Password: ")
 	newUserPaswd := ReadOneLine()
-	_ = newUserPaswd
-	_ = newUserLogin
+
+	err := c.transport.Registration(context.Background(), transport.UserInfo{
+		Login:    newUserLogin,
+		Password: newUserPaswd,
+	})
+	if err != nil {
+		log.Println(err)
+		return true
+	}
 	return false
 }
 func ChangePassword(c *Client) bool {

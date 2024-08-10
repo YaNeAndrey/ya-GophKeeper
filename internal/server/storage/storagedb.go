@@ -88,22 +88,17 @@ func (st *StorageDB) AddNewUser(ctx context.Context, login string, password stri
 	if err != nil {
 		return err
 	}
-	var id int
-	id, err = GetUserID(ctx, login, db)
-
-	if err != nil {
+	_, err = GetUserID(ctx, login, db)
+	if errors.Is(err, sql.ErrNoRows) {
+		_, err = db.ExecContext(ctx, "INSERT INTO Users(login,passwd) values($1, crypt($2, gen_salt('bf')));", login, password)
+		if err != nil {
+			return err
+		}
+		return nil
+	} else if err != nil {
 		return err
 	}
-	if id != 0 {
-		return srverror.ErrLoginAlreadyTaken
-	}
-
-	_, err = db.ExecContext(ctx, "INSERT INTO Users(login,passwd) values($1, crypt($2, gen_salt('bf')));", login, password)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return srverror.ErrLoginAlreadyTaken
 }
 func (st *StorageDB) CheckUserPassword(ctx context.Context, login string, password string) (bool, error) {
 	db, err := TryToOpenDBConnection(st.connectionString)

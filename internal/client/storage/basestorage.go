@@ -229,6 +229,13 @@ func (st *BaseStorage) GetTextsData() *Texts {
 	return &st.texts
 }
 
+func (st *BaseStorage) Clear() {
+	st.files.Clear()
+	st.texts.Clear()
+	st.credentials.Clear()
+	st.creditCards.Clear()
+}
+
 func fileSize(filename string) (int64, error) {
 	fi, err := os.Stat(filename)
 	if err != nil {

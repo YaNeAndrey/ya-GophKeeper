@@ -17,6 +17,8 @@ type Collection interface {
 	GetAllIDsWithModtime() map[int]time.Time
 	GetItems([]int) interface{}
 	RemoveItems([]int)
+
+	Clear()
 }
 
 type CreditCards struct {
@@ -112,6 +114,10 @@ func (c *CreditCards) RemoveItems(IDs []int) {
 	}
 	c.stored = newStored
 }
+func (c *CreditCards) Clear() {
+	c.stored = nil
+	c.removed = nil
+}
 
 type Credentials struct {
 	stored  []content.CredentialInfo
@@ -205,6 +211,10 @@ func (c *Credentials) RemoveItems(IDs []int) {
 		}
 	}
 	c.stored = newStored
+}
+func (c *Credentials) Clear() {
+	c.stored = nil
+	c.removed = nil
 }
 
 type Texts struct {
@@ -300,6 +310,10 @@ func (c *Texts) RemoveItems(IDs []int) {
 	}
 	c.stored = newStored
 }
+func (c *Texts) Clear() {
+	c.stored = nil
+	c.removed = nil
+}
 
 type Files struct {
 	tempDir string
@@ -394,4 +408,8 @@ func (c *Files) RemoveItems(IDs []int) {
 		}
 	}
 	c.stored = newStored
+}
+func (c *Files) Clear() {
+	c.stored = nil
+	c.removed = nil
 }

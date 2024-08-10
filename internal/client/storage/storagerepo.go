@@ -24,4 +24,6 @@ type StorageRepo interface {
 	GetCredentialsData() *Credentials
 	GetFilesData() *Files
 	GetTextsData() *Texts
+
+	Clear()
 }

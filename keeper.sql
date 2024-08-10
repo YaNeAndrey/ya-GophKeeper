@@ -71,6 +71,7 @@ select * from Users_CreditCards
 
 DELETE FROM Users;
 
+select * from users
 select * from creditcards
 
 select * from texts
