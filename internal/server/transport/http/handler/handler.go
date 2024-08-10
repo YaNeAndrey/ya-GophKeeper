@@ -297,8 +297,6 @@ func SyncFirstStep(w http.ResponseWriter, r *http.Request, login string, dataTyp
 	case urlsuff.DatatypeFile:
 		answer.DataForCli, err = st.GetFiles(ctx, login, sendToCli)
 	}
-	//m := zson.NewMarshaler()
-	//respBody, err := m.Marshal(answer)
 	respBody, err := json.Marshal(answer)
 	//log.Println(respBody)
 	if err != nil {
@@ -378,7 +376,11 @@ func GenerateOTP_GET(w http.ResponseWriter, r *http.Request, m *otp.ManagerOTP) 
 		return
 	}
 
-	_ = loginOTP
+	_, err = w.Write([]byte(strconv.Itoa(loginOTP)))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func SetToken(w *http.ResponseWriter, login string) error {

@@ -628,7 +628,7 @@ func GetOTP(c *Client) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Printf("OTP: %d", otp)
+	fmt.Printf("OTP: %d\r\n", otp)
 }
 
 func AuthorizationPassword(c *Client) bool {
@@ -657,12 +657,12 @@ func AuthorizationOTP(c *Client) bool {
 	err := c.transport.Login(context.Background(), transport.UserInfo{
 		Login:    login,
 		Password: otp,
-	}, urlsuff.LoginTypePasswd)
+	}, urlsuff.LoginTypeOTP)
 	if err != nil {
 		fmt.Printf("Authorization problem. Try again! Err: %s", err.Error())
 		return true
 	}
-	return true
+	return false
 }
 
 func PrintHelpAndInformation(c *Client) bool {

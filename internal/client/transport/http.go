@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strconv"
 	"ya-GophKeeper/internal/client/storage"
 	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/constants/urlsuff"
@@ -101,7 +102,27 @@ func (tr *TransportHTTP) ChangePassword(ctx context.Context, newLogin string) er
 }
 
 func (tr *TransportHTTP) GetOTP(ctx context.Context) (int, error) {
-	return 0, nil
+	client := http.Client{}
+	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationGenerateOTP)
+	req, _ := http.NewRequest(http.MethodGet, reqURL, nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "token",
+		Value: tr.jwtToken,
+	})
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	otpBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+	OTP, err := strconv.Atoi(string(otpBytes))
+	if err != nil {
+		return 0, err
+	}
+	return OTP, nil
 }
 
 func (tr *TransportHTTP) Sync(ctx context.Context, items storage.Collection) error {

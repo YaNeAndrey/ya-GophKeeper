@@ -6,6 +6,7 @@ const (
 	OperationSync         = "sync"
 	OperationRegistration = "registration"
 	OperationLogin        = "login"
+	OperationGenerateOTP  = "otp"
 
 	DatatypeCredential = "cred"
 	DatatypeCreditCard = "card"
