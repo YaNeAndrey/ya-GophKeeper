@@ -2,8 +2,8 @@ package client
 
 import (
 	"bufio"
-	"container/list"
 	"context"
+	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
@@ -430,7 +430,7 @@ func ReadCreditCard() (int, *content.CreditCardInfo, error) {
 		return 0, nil, nil
 	}
 
-	errorsList := list.List{}
+	var errorsList []error
 	fmt.Println("Bank: ")
 	bank := ReadOneLine()
 	fmt.Println("Card Number (16 digits without spaces): ")
@@ -438,7 +438,7 @@ func ReadCreditCard() (int, *content.CreditCardInfo, error) {
 	if cardNumber != "" {
 		err = CheckCardNumberWithLuhn(cardNumber)
 		if err != nil {
-			errorsList.PushBack(err)
+			errorsList = append(errorsList, err)
 		}
 	}
 	fmt.Println("CVV (3 digits): ")
@@ -446,7 +446,7 @@ func ReadCreditCard() (int, *content.CreditCardInfo, error) {
 	if cvv != "" {
 		err = CheckCVV(cvv)
 		if err != nil {
-			errorsList.PushBack(err)
+			errorsList = append(errorsList, err)
 		}
 	}
 	fmt.Println("ValidThru date (format dd.mm.yyyy/30.12.2001): ")
@@ -455,11 +455,11 @@ func ReadCreditCard() (int, *content.CreditCardInfo, error) {
 	if validThruStr != "" {
 		validThru, err = time.Parse("02.01.2006", validThruStr)
 		if err != nil {
-			errorsList.PushBack(err)
+			errorsList = append(errorsList, err)
 		}
 	}
-	if errorsList.Len() != 0 {
-		return 0, nil, fmt.Errorf("%v", errorsList)
+	if len(errorsList) != 0 {
+		return 0, nil, errors.Join(errorsList...)
 	} else {
 		return index, &content.CreditCardInfo{
 			CardNumber:       cardNumber,
@@ -485,7 +485,7 @@ func ReadBinaryFile() (int, *content.BinaryFileInfo, error) {
 	fmt.Println("Description: ")
 	description := ReadOneLine()
 
-	fmt.Println("File path for reading: ")
+	fmt.Println("File path for reading. Max file size: 4GB. : ")
 	filePath := ReadOneLine()
 	return index, &content.BinaryFileInfo{
 		FileName:         fileName,
@@ -505,13 +505,18 @@ func ReadText() (int, *content.TextInfo, error) {
 	}
 	fmt.Println("Description: ")
 	description := ReadOneLine()
-	_ = description
 
-	fmt.Println("Text (use double Enter to stop): ")
+	fmt.Println("Text. Max size: 1000 symbols. (use double Enter to stop): ")
 	textArray := ReadMultipleLines()
 	text := strings.Join(textArray, "\r\n")
-	_ = text
-	return index, &content.TextInfo{}, nil
+	if len(text) > 1000 {
+		return 0, nil, clerror.ErrMaxTextSizeExceeded
+	}
+	return index, &content.TextInfo{
+		Content:          text,
+		Description:      description,
+		ModificationTime: time.Now(),
+	}, nil
 }
 
 func Synchronization(c *Client) bool {

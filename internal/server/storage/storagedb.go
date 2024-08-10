@@ -66,11 +66,12 @@ func InitStorageDB(connectionString string) *StorageDB {
 		log.Println(err)
 		return nil
 	}
-	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Files(ID_File serial PRIMARY KEY, description TEXT, file_name varchar(256) NOT NULL, file_path varchar(256) NOT NULL, file_size int NOT NULL, modification_time timestamp);")
+	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Files(ID_File serial PRIMARY KEY, description TEXT, file_name varchar(256) NOT NULL, file_path varchar(256) NOT NULL, file_size int NOT NULL, md5 uuid NOT NULL, modification_time timestamp);")
 	if err != nil {
 		log.Println(err)
 		return nil
 	}
+
 	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Users_Files(ID_User_File serial PRIMARY KEY, ID_User int REFERENCES Users(ID_User), ID_File int REFERENCES Files(ID_File));")
 	if err != nil {
 		log.Println(err)
@@ -160,7 +161,7 @@ func (st *StorageDB) AddNewCreditCards(ctx context.Context, login string, credit
 	}
 	for index, card := range creditCards {
 		var cardID int
-		err := db.QueryRowContext(ctx, "INSERT INTO CreditCards(bank,card_number,valid_thru,cvv,modification_time) values($1,$2,$3,$4,$5) RETURNING ID_CreditCard;", card.Bank, card.CardNumber, card.ValidThru, card.CVV, card.ModificationTime).Scan(&cardID)
+		err = db.QueryRowContext(ctx, "INSERT INTO CreditCards(bank,card_number,valid_thru,cvv,modification_time) values($1,$2,$3,$4,$5) RETURNING ID_CreditCard;", card.Bank, card.CardNumber, card.ValidThru, card.CVV, card.ModificationTime).Scan(&cardID)
 
 		if err != nil {
 			log.Println(err)
@@ -177,13 +178,69 @@ func (st *StorageDB) AddNewCreditCards(ctx context.Context, login string, credit
 	return creditCards, nil
 }
 func (st *StorageDB) AddNewCredentials(ctx context.Context, login string, credentials []content.CredentialInfo) ([]content.CredentialInfo, error) {
-	return nil, nil
+	db, err := TryToOpenDBConnection(st.connectionString)
+	if err != nil {
+		return nil, err
+	}
+	var userID int
+	userID, err = GetUserID(ctx, login, db)
+	if err != nil {
+		return nil, err
+	}
+	if userID == 0 {
+		return nil, srverror.ErrLoginNotFound
+	}
+	for index, cred := range credentials {
+		var credID int
+		err = db.QueryRowContext(ctx, "INSERT INTO credentials(resource,login,passwd,modification_time) values($1,$2,$3,$4) RETURNING id_credential;", cred.Resource, cred.Login, cred.Password, cred.ModificationTime).Scan(&credID)
+
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		credentials[index].ID = credID
+
+		_, err = db.ExecContext(ctx, "INSERT INTO users_credentials (ID_User,id_credential) values ($1,$2)", userID, credID)
+		if err != nil {
+			log.Println(err)
+			//mb remove credential?
+		}
+	}
+	return credentials, nil
 }
 func (st *StorageDB) AddNewFiles(ctx context.Context, login string, files []content.BinaryFileInfo) ([]content.BinaryFileInfo, error) {
 	return nil, nil
 }
 func (st *StorageDB) AddNewTexts(ctx context.Context, login string, texts []content.TextInfo) ([]content.TextInfo, error) {
-	return nil, nil
+	db, err := TryToOpenDBConnection(st.connectionString)
+	if err != nil {
+		return nil, err
+	}
+	var userID int
+	userID, err = GetUserID(ctx, login, db)
+	if err != nil {
+		return nil, err
+	}
+	if userID == 0 {
+		return nil, srverror.ErrLoginNotFound
+	}
+	for index, text := range texts {
+		var textID int
+		err = db.QueryRowContext(ctx, "INSERT INTO texts(description,content,modification_time) values($1,$2,$3) RETURNING id_text;", text.Description, text.Content, text.ModificationTime).Scan(&textID)
+
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		texts[index].ID = textID
+
+		_, err = db.ExecContext(ctx, "INSERT INTO users_texts (ID_User,id_text) values ($1,$2)", userID, textID)
+		if err != nil {
+			log.Println(err)
+			//mb remove credential?
+		}
+	}
+	return texts, nil
 }
 
 func (st *StorageDB) RemoveCreditCards(ctx context.Context, login string, creditCardIDs []int) error {
@@ -200,18 +257,14 @@ func (st *StorageDB) RemoveCreditCards(ctx context.Context, login string, credit
 		return srverror.ErrLoginNotFound
 	}
 
-	for _, cardID := range creditCardIDs {
-		_, err = db.ExecContext(ctx, "DELETE FROM Users_CreditCards where ID_CreditCard = $1 and ID_User = $2", cardID, userID)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		_, err = db.ExecContext(ctx, "DELETE FROM CreditCards where ID_CreditCard = $1", cardID)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
+	_, err = db.ExecContext(ctx, "DELETE FROM Users_CreditCards where ID_CreditCard = any($1) and ID_User = $2", pq.Array(creditCardIDs), userID)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	_, err = db.ExecContext(ctx, "DELETE FROM CreditCards where ID_CreditCard = any($1)", pq.Array(creditCardIDs))
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -229,24 +282,45 @@ func (st *StorageDB) RemoveCredentials(ctx context.Context, login string, creden
 		return srverror.ErrLoginNotFound
 	}
 
-	for _, cardID := range credentialIDs {
-		_, err = db.ExecContext(ctx, "DELETE FROM Credentials where ID_Credential == $1", cardID)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		_, err = db.ExecContext(ctx, "DELETE FROM Users_Credentials where ID_Credential == $1 and ID_User == $2", cardID, userID)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
+	_, err = db.ExecContext(ctx, "DELETE FROM Users_Credentials where id_credential = any($1) and ID_User = $2", pq.Array(credentialIDs), userID)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	_, err = db.ExecContext(ctx, "DELETE FROM Credentials where id_credential = any($1)", pq.Array(credentialIDs))
+	if err != nil {
+		return err
 	}
 	return nil
 }
 func (st *StorageDB) RemoveFiles(ctx context.Context, login string, fileIDs []int) ([]string, error) {
 	return nil, nil
 }
-func (st *StorageDB) RemoveTexts(ctx context.Context, login string, textIDs []int) error { return nil }
+func (st *StorageDB) RemoveTexts(ctx context.Context, login string, textIDs []int) error {
+	db, err := TryToOpenDBConnection(st.connectionString)
+	if err != nil {
+		return err
+	}
+	var userID int
+	userID, err = GetUserID(ctx, login, db)
+	if err != nil {
+		return err
+	}
+	if userID == 0 {
+		return srverror.ErrLoginNotFound
+	}
+
+	_, err = db.ExecContext(ctx, "DELETE FROM users_texts where id_text = any($1) and ID_User = $2", pq.Array(textIDs), userID)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	_, err = db.ExecContext(ctx, "DELETE FROM texts where id_text = any($1)", pq.Array(textIDs))
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func (st *StorageDB) UpdateFiles(ctx context.Context, login string, files []content.BinaryFileInfo) error {
 	return nil
@@ -258,7 +332,7 @@ func (st *StorageDB) UpdateTexts(ctx context.Context, login string, texts []cont
 	}
 
 	for _, text := range texts {
-		_, err = db.ExecContext(ctx, "UPDATE Texts SET description = $2, content = $3, modification_time = $4 where ID_Text == $1", text.ID, text.Description, text.Content, text.ModificationTime)
+		_, err = db.ExecContext(ctx, "UPDATE Texts SET description = $2, content = $3, modification_time = $4 where ID_Text = $1", text.ID, text.Description, text.Content, text.ModificationTime)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -288,7 +362,7 @@ func (st *StorageDB) UpdateCredentials(ctx context.Context, login string, creden
 	}
 
 	for _, cred := range credentials {
-		_, err = db.ExecContext(ctx, "UPDATE Credentials SET resource = $2, login = $3, passwd = $4,modification_time = $5 where id_credential == $1", cred.ID, cred.Resource, cred.Login, cred.Password, cred.ModificationTime)
+		_, err = db.ExecContext(ctx, "UPDATE Credentials SET resource = $2, login = $3, passwd = $4,modification_time = $5 where id_credential = $1", cred.ID, cred.Resource, cred.Login, cred.Password, cred.ModificationTime)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -306,14 +380,12 @@ func (st *StorageDB) GetCreditCards(ctx context.Context, login string, cardIDs [
 		return nil, err
 	}
 	var userID int
-	err = db.QueryRowContext(ctx, "SELECT id_user FROM Users WHERE login = $1", login).Scan(&userID)
+	userID, err = GetUserID(ctx, login, db)
 	if err != nil {
-		switch err {
-		case sql.ErrNoRows:
-			return nil, srverror.ErrLoginNotFound
-		default:
-			return nil, err
-		}
+		return nil, err
+	}
+	if userID == 0 {
+		return nil, srverror.ErrLoginNotFound
 	}
 
 	var rows *sql.Rows
@@ -331,13 +403,69 @@ func (st *StorageDB) GetCreditCards(ctx context.Context, login string, cardIDs [
 	return res, nil
 }
 func (st *StorageDB) GetCredentials(ctx context.Context, login string, credIDs []int) ([]content.CredentialInfo, error) {
-	return nil, nil
+	if credIDs == nil {
+		return nil, nil
+	}
+	db, err := TryToOpenDBConnection(st.connectionString)
+	if err != nil {
+		return nil, err
+	}
+	var userID int
+	userID, err = GetUserID(ctx, login, db)
+	if err != nil {
+		return nil, err
+	}
+	if userID == 0 {
+		return nil, srverror.ErrLoginNotFound
+	}
+
+	var rows *sql.Rows
+	rows, err = db.QueryContext(ctx, "SELECT credentials.id_credential,credentials.resource,credentials.login,credentials.passwd,credentials.modification_time FROM credentials JOIN users_credentials on credentials.id_credential = users_credentials.id_credential WHERE users_credentials.id_user = $1 and credentials.id_credential = any($2)", userID, pq.Array(credIDs))
+
+	var res []content.CredentialInfo
+	for rows.Next() {
+		var r content.CredentialInfo
+		err = rows.Scan(&r.ID, &r.Resource, &r.Login, &r.Password, &r.ModificationTime)
+		if err != nil {
+			break
+		}
+		res = append(res, r)
+	}
+	return res, nil
 }
 func (st *StorageDB) GetFiles(ctx context.Context, login string, fileIDs []int) ([]content.BinaryFileInfo, error) {
 	return nil, nil
 }
 func (st *StorageDB) GetTexts(ctx context.Context, login string, textIDs []int) ([]content.TextInfo, error) {
-	return nil, nil
+	if textIDs == nil {
+		return nil, nil
+	}
+	db, err := TryToOpenDBConnection(st.connectionString)
+	if err != nil {
+		return nil, err
+	}
+	var userID int
+	userID, err = GetUserID(ctx, login, db)
+	if err != nil {
+		return nil, err
+	}
+	if userID == 0 {
+		return nil, srverror.ErrLoginNotFound
+	}
+
+	var rows *sql.Rows
+	rows, err = db.QueryContext(ctx, "SELECT texts.id_text,texts.description,texts.content,texts.modification_time FROM texts JOIN users_texts on texts.id_text = users_texts.id_text WHERE users_texts.id_user = $1 and texts.id_text = any($2)", userID, pq.Array(textIDs))
+
+	var res []content.TextInfo
+	for rows.Next() {
+		var r content.TextInfo
+		err = rows.Scan(&r.ID, &r.Description, &r.Content, &r.ModificationTime)
+		if err != nil {
+			break
+		}
+		res = append(res, r)
+	}
+	return res, nil
 }
 
 func (st *StorageDB) GetModtimeWithIDs(ctx context.Context, login string, dataType string) (map[int]time.Time, error) {

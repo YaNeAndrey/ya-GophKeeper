@@ -53,8 +53,12 @@ CREATE TABLE IF NOT EXISTS Files (
     file_name varchar(256) NOT NULL,
     file_path varchar(256) NOT NULL,
     file_size int NOT NULL,
+    md5 uuid NOT NULL,
     modification_time timestamp
 );
+
+
+select md5('Store hash for long string, maybe for index?')::uuid
 
 INSERT INTO Users(login,passwd) values('admin', crypt('admin', gen_salt('bf')));
 select * from users;
@@ -69,7 +73,7 @@ DELETE FROM Users;
 
 select * from creditcards
 
-
+select * from texts
 
 
 UPDATE CreditCards SET bank = 'Lol', card_number = '1234567890123456', valid_thru = '2024-10-12',cvv = '345', modification_time = '2024-10-12' WHERE id_creditcard = 2;

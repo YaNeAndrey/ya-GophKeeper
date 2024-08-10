@@ -24,6 +24,7 @@ type BinaryFileInfo struct {
 	FilePath         string    `json:"file_path"`
 	Description      string    `json:"description"`
 	FileSize         int       `json:"file_size"`
+	MD5              uint      `json:"md5"`
 	ModificationTime time.Time `json:"mod_time"`
 }
 
@@ -40,7 +41,7 @@ type TextInfo struct {
 }
 
 func (t *TextInfo) String() string {
-	resStr := fmt.Sprintf("Description: %s; Content: %s;\r\n", t.Description, t.Content)
+	resStr := fmt.Sprintf("Description: %s;\r\n Content: %s;\r\n", t.Description, t.Content)
 	return resStr
 }
 

@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"io"
+	"math"
 	"os"
 	"path"
 	"time"
@@ -54,13 +55,16 @@ func (st *BaseStorage) AddNewFile(file *content.BinaryFileInfo) error {
 		return fmt.Errorf("AddNewFile : %w", clerror.ErrAllFieldsMustBeFulled)
 	}
 	tempFilePath := path.Join(st.files.tempDir, uuid.New().String())
-	if fileExists(file.FilePath) {
-		err := copyFileContents(file.FilePath, tempFilePath)
-		if err != nil {
-			return clerror.ErrCopyFileProblem
-		}
-	} else {
-		return clerror.ErrFileNotFound
+	size, err := fileSize(file.FilePath)
+	if err != nil {
+		return err
+	}
+	if size > math.MaxUint32 {
+		return clerror.ErrMaxFileSizeExceeded
+	}
+	err = copyFileContents(file.FilePath, tempFilePath)
+	if err != nil {
+		return clerror.ErrCopyFileProblem
 	}
 
 	newFileData := content.BinaryFileInfo{
@@ -177,13 +181,17 @@ func (st *BaseStorage) UpdateFiles(index int, file *content.BinaryFileInfo) erro
 	if index > len(st.files.stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
-	if file.FilePath != "" {
-		if fileExists(file.FilePath) {
-			err := copyFileContents(file.FilePath, st.files.stored[index].FilePath)
-			if err != nil {
-				return err
-			}
-		}
+	tempFilePath := path.Join(st.files.tempDir, uuid.New().String())
+	size, err := fileSize(file.FilePath)
+	if err != nil {
+		return err
+	}
+	if size > math.MaxUint32 {
+		return clerror.ErrMaxFileSizeExceeded
+	}
+	err = copyFileContents(file.FilePath, tempFilePath)
+	if err != nil {
+		return clerror.ErrCopyFileProblem
 	}
 	if file.FileName != "" {
 		st.files.stored[index].FileName = file.FileName
@@ -221,13 +229,17 @@ func (st *BaseStorage) GetTextsData() *Texts {
 	return &st.texts
 }
 
-func fileExists(filename string) bool {
-	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
+func fileSize(filename string) (int64, error) {
+	fi, err := os.Stat(filename)
+	if err != nil {
+		return 0, err
 	}
-	return !info.IsDir()
+	if fi.IsDir() {
+		return 0, clerror.ErrPathIsDir
+	}
+	return fi.Size(), nil
 }
+
 func copyFileContents(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
