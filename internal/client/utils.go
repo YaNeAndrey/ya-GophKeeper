@@ -121,7 +121,10 @@ func RegistrationPage(c *Client) bool {
 func ChangePassword(c *Client) bool {
 	fmt.Println("New password: ")
 	passwd := ReadOneLine()
-	_ = passwd
+	err := c.transport.ChangePassword(context.Background(), passwd)
+	if err != nil {
+		log.Println(err)
+	}
 	return true
 }
 func UpdatePage(c *Client) bool {

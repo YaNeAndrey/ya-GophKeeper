@@ -1,12 +1,13 @@
 package urlsuff
 
 const (
-	OperationRemove       = "remove"
-	OperationInsertNew    = "add"
-	OperationSync         = "sync"
-	OperationRegistration = "registration"
-	OperationLogin        = "login"
-	OperationGenerateOTP  = "otp"
+	OperationRemove        = "remove"
+	OperationInsertNew     = "add"
+	OperationSync          = "sync"
+	OperationRegistration  = "registration"
+	OperationLogin         = "login"
+	OperationGenerateOTP   = "otp"
+	OperationChangPassword = "changepass"
 
 	DatatypeCredential = "cred"
 	DatatypeCreditCard = "card"

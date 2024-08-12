@@ -125,7 +125,7 @@ func (st *StorageDB) ChangeUserPassword(ctx context.Context, login string, passw
 		return err
 	}
 
-	res, err := db.ExecContext(ctx, "UPDATE Users SET passwd = $2 WHERE login = $1", login, password)
+	res, err := db.ExecContext(ctx, "UPDATE Users SET passwd = crypt($2, gen_salt('bf')) WHERE login = $1", login, password)
 	if err != nil {
 		return err
 	}

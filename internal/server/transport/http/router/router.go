@@ -33,6 +33,10 @@ func InitRouter(st storage.StorageRepo, m *otp.ManagerOTP) http.Handler {
 			})
 		})
 
+		r.Post("/changepass", func(rw http.ResponseWriter, req *http.Request) {
+			handler.ChangePasswordPOST(rw, req, st)
+		})
+
 		r.Get("/otp", func(rw http.ResponseWriter, req *http.Request) {
 			handler.GenerateOTP_GET(rw, req, m)
 		})

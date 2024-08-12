@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/go-chi/chi/v5"
 	log "github.com/sirupsen/logrus"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -79,6 +80,25 @@ func LoginWithPasswordPOST(w http.ResponseWriter, r *http.Request, st storage.St
 	} else {
 		w.WriteHeader(http.StatusUnauthorized)
 	}
+}
+
+func ChangePasswordPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
+	claims, ok := jwt.CheckAccess(r)
+	if !ok {
+		http.Error(w, "", http.StatusUnauthorized)
+		return
+	}
+	newPass, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	err = st.ChangeUserPassword(context.Background(), claims.Login, string(newPass))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func LoginWithOTP_POST(w http.ResponseWriter, r *http.Request, m *otp.ManagerOTP) {

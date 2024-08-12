@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"ya-GophKeeper/internal/client/storage"
 	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/constants/urlsuff"
@@ -93,10 +94,21 @@ func (tr *TransportHTTP) Login(ctx context.Context, userAutData UserInfo, loginT
 	return nil
 }
 
-func (tr *TransportHTTP) ChangePassword(ctx context.Context, newLogin string) error {
-	fmt.Println("Send request")
-	for {
-		fmt.Println("Send request")
+func (tr *TransportHTTP) ChangePassword(ctx context.Context, newPasswd string) error {
+	client := http.Client{}
+	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationChangPassword)
+	strings.NewReader(newPasswd)
+	req, _ := http.NewRequest(http.MethodPost, reqURL, strings.NewReader(newPasswd))
+	req.AddCookie(&http.Cookie{
+		Name:  "token",
+		Value: tr.jwtToken,
+	})
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return BadResponseHandler(resp, "From Change Password operation")
 	}
 	return nil
 }
