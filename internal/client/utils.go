@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gosuri/uilive"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strconv"
@@ -94,6 +95,9 @@ func LoginPage(c *Client) bool {
 	case "2":
 		RunConsoleFunc(c, AuthorizationOTP)
 	case "3":
+		return false
+	default:
+		fmt.Println("Incorrect input")
 		return false
 	}
 	return true
@@ -548,11 +552,12 @@ func Synchronization(c *Client) bool {
 	case "4":
 		collection = c.storage.GetFilesData()
 	case "5":
-		SyncCollection(c, c.storage.GetCredentialsData())
-		SyncCollection(c, c.storage.GetCreditCardsData())
-		SyncCollection(c, c.storage.GetTextsData())
-		SyncCollection(c, c.storage.GetFilesData())
-
+		err := FullSync(c)
+		if err != nil {
+			log.Println(err)
+			return false
+		}
+		return true
 	case "6":
 		return false
 	default:
@@ -568,10 +573,80 @@ func Synchronization(c *Client) bool {
 }
 
 func SyncCollection(c *Client, collection storage.Collection) error {
+	finishCh := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	go SynchronizationPrinter(ctx, finishCh)
+
 	err := c.transport.Sync(context.Background(), collection)
+	cancel()
+	<-finishCh
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func SyncMonitor(c *Client, ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case <-time.After(c.config.SyncInterval):
+			err := FullSync(c)
+			if err != nil {
+				log.Println(err)
+			}
+		}
+	}
+}
+
+func SynchronizationPrinter(ctx context.Context, finishCh chan struct{}) {
+	writer := uilive.New()
+	writer.Start()
+	defer writer.Stop()
+
+	for i := 1; ; i++ {
+		select {
+		case <-ctx.Done():
+			fmt.Fprintf(writer, "Synchronization complete\n")
+			finishCh <- struct{}{}
+			return
+		default:
+			str := ""
+			for j := 0; j < i%20; j++ {
+				str += "*"
+			}
+			fmt.Fprintf(writer, "Synchronization: %s\n", str)
+		}
+		time.Sleep(time.Millisecond * 10)
+	}
+}
+
+func FullSync(c *Client) error {
+	fmt.Print("Credentials: ")
+	err := SyncCollection(c, c.storage.GetCredentialsData())
+	if err != nil {
+		return err
+	}
+	fmt.Print("Credit Cards: ")
+	err = SyncCollection(c, c.storage.GetCreditCardsData())
+	if err != nil {
+		return err
+	}
+	fmt.Print("Texts: ")
+	err = SyncCollection(c, c.storage.GetTextsData())
+	if err != nil {
+		return err
+	}
+	/*
+		fmt.Print("Files: ")
+		err = SyncCollection(c, c.storage.GetFilesData())
+		if err != nil {
+			return err
+		}
+	*/
 	return nil
 }
 

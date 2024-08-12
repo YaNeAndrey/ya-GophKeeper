@@ -3,9 +3,14 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"time"
 )
 
 type Config struct {
+	SrvAddr      string
+	SrvPort      int
+	TempDir      string
+	SyncInterval time.Duration
 }
 
 func ParseConfigFromJSON(configPath string) (*Config, error) {

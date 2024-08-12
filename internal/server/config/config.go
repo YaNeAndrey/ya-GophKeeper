@@ -6,6 +6,8 @@ import (
 )
 
 type Config struct {
+	Port      int
+	SecretKey string
 }
 
 func ParseConfigFromJSON(configPath string) (*Config, error) {
