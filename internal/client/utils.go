@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 	"ya-GophKeeper/internal/client/storage"
-	"ya-GophKeeper/internal/client/transport"
+	"ya-GophKeeper/internal/client/transport/http"
 	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/constants/urlsuff"
 	"ya-GophKeeper/internal/content"
@@ -108,7 +108,7 @@ func RegistrationPage(c *Client) bool {
 	fmt.Println("Password: ")
 	newUserPaswd := ReadOneLine()
 
-	err := c.transport.Registration(context.Background(), transport.UserInfo{
+	err := c.transport.Registration(context.Background(), http.UserInfo{
 		Login:    newUserLogin,
 		Password: newUserPaswd,
 	})
@@ -723,7 +723,7 @@ func AuthorizationPassword(c *Client) bool {
 	fmt.Println("Password: ")
 	passwd := ReadOneLine()
 
-	err := c.transport.Login(context.Background(), transport.UserInfo{
+	err := c.transport.Login(context.Background(), http.UserInfo{
 		Login:    login,
 		Password: passwd,
 	}, urlsuff.LoginTypePasswd)
@@ -740,7 +740,7 @@ func AuthorizationOTP(c *Client) bool {
 	login := ReadOneLine()
 	fmt.Println("OTP: ")
 	otp := ReadOneLine()
-	err := c.transport.Login(context.Background(), transport.UserInfo{
+	err := c.transport.Login(context.Background(), http.UserInfo{
 		Login:    login,
 		Password: otp,
 	}, urlsuff.LoginTypeOTP)

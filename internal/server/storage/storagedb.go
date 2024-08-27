@@ -288,8 +288,30 @@ func (st *StorageDB) RemoveCredentials(ctx context.Context, login string, creden
 	}
 	return nil
 }
-func (st *StorageDB) RemoveFiles(ctx context.Context, login string, fileIDs []int) ([]string, error) {
-	return nil, nil
+func (st *StorageDB) RemoveFiles(ctx context.Context, login string, fileIDs []int) error {
+	db, err := TryToOpenDBConnection(st.connectionString)
+	if err != nil {
+		return err
+	}
+	var userID int
+	userID, err = GetUserID(ctx, login, db)
+	if err != nil {
+		return err
+	}
+	if userID == 0 {
+		return srverror.ErrLoginNotFound
+	}
+
+	_, err = db.ExecContext(ctx, "DELETE FROM users_files where id_file = any($1) and ID_User = $2", pq.Array(fileIDs), userID)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	_, err = db.ExecContext(ctx, "DELETE FROM files where id_file = any($1)", pq.Array(fileIDs))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 func (st *StorageDB) RemoveTexts(ctx context.Context, login string, textIDs []int) error {
 	db, err := TryToOpenDBConnection(st.connectionString)

@@ -164,12 +164,17 @@ func RemoveDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 			return
 		}
 	case urlsuff.DatatypeFile:
-		files, err := st.RemoveFiles(context.Background(), login, rem)
+		files, err := st.GetFiles(context.Background(), login, rem)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		RemoveFiles(files)
+		err = st.RemoveFiles(context.Background(), login, rem)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	default:
 		http.Error(w, srverror.ErrIncorrectDataTpe.Error(), http.StatusNotFound)
 		return
@@ -232,7 +237,17 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 		}
 		respBody, err = json.Marshal(texts)
 	case urlsuff.DatatypeFile:
-		AddNewFilePOST()
+		var newFiles []content.BinaryFileInfo
+		err := json.NewDecoder(r.Body).Decode(&newFiles)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		files, err := st.AddNewFiles(context.Background(), login, newFiles)
+		if err != nil || files == nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		respBody, err = json.Marshal(files)
 	default:
 		http.Error(w, srverror.ErrIncorrectDataTpe.Error(), http.StatusBadRequest)
 	}
@@ -243,9 +258,6 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-}
-
-func AddNewFilePOST() {
 }
 
 func SyncDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
@@ -425,9 +437,9 @@ func ReadAuthDate(r *http.Request) (*UserInfo, error) {
 	return &user, nil
 }
 
-func RemoveFiles(files []string) {
+func RemoveFiles(files []content.BinaryFileInfo) {
 	for _, f := range files {
-		e := os.Remove(f)
+		e := os.Remove(f.FilePath)
 		if e != nil {
 			log.Error(e)
 		}

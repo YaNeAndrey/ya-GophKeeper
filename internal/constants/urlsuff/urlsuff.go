@@ -9,6 +9,9 @@ const (
 	OperationGenerateOTP   = "otp"
 	OperationChangPassword = "changepass"
 
+	FileOperationUpload   = "upload"
+	FileOperationDownload = "upload"
+
 	DatatypeCredential = "cred"
 	DatatypeCreditCard = "card"
 	DatatypeText       = "text"

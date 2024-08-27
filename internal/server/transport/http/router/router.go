@@ -4,6 +4,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	log "github.com/sirupsen/logrus"
 	"net/http"
+	"strings"
 	"ya-GophKeeper/internal/server/otp"
 	"ya-GophKeeper/internal/server/storage"
 	"ya-GophKeeper/internal/server/transport/http/handler"
@@ -15,8 +16,8 @@ func InitRouter(st storage.StorageRepo, m *otp.ManagerOTP) http.Handler {
 		rw.WriteHeader(http.StatusNotFound)
 	})
 
-	//fs := http.FileServer(http.Dir("temp file dir"))
-
+	//fs := filesystem.NoListFileSystem{Base: http.Dir("C:\\Users\\pc\\Documents\\GoYandex\\ya-GophKeeper")}
+	fs := http.FileServer(http.Dir("."))
 	logger := log.New()
 	logger.SetLevel(log.InfoLevel)
 
@@ -53,7 +54,22 @@ func InitRouter(st storage.StorageRepo, m *otp.ManagerOTP) http.Handler {
 			handler.SyncDataPOST(rw, req, st)
 		})
 
-		//r.Handle("/files/", fs)
+		r.Route("/file/", func(r chi.Router) {
+			r.Post("/upload/", func(rw http.ResponseWriter, req *http.Request) {
+				//handler.SyncDataPOST(rw, req, st)
+			})
+			r.Handle("/download/*", noDirListing(http.StripPrefix("/files/download/", fs)))
+		})
 	})
 	return r
+}
+
+func noDirListing(h http.Handler) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
 }
