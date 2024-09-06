@@ -10,7 +10,7 @@ import (
 	"ya-GophKeeper/internal/server/transport/http/handler"
 )
 
-func InitRouter(st storage.StorageRepo, m *otp.ManagerOTP) http.Handler {
+func InitRouter(st storage.StorageRepo, m *otp.ManagerOTP, fm *storage.FileManager) http.Handler {
 	r := chi.NewRouter()
 	r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusNotFound)
@@ -54,12 +54,21 @@ func InitRouter(st storage.StorageRepo, m *otp.ManagerOTP) http.Handler {
 			handler.SyncDataPOST(rw, req, st)
 		})
 
-		r.Route("/file/", func(r chi.Router) {
-			r.Post("/upload/", func(rw http.ResponseWriter, req *http.Request) {
-				//handler.SyncDataPOST(rw, req, st)
-			})
-			r.Handle("/download/*", noDirListing(http.StripPrefix("/files/download/", fs)))
+		r.Post("/file/upload", func(rw http.ResponseWriter, req *http.Request) {
+			handler.UploadFilePOST(rw, req, fm)
 		})
+		/*
+			r.Route("/file/", func(r chi.Router) {
+
+					r.Post("/upload", func(rw http.ResponseWriter, req *http.Request) {
+						handler.UploadFilePOST(rw, req)
+					})
+
+				r.Handle("/download/*", noDirListing(http.StripPrefix("/files/download/", fs)))
+			})
+		*/
+
+		r.Handle("/download/*", noDirListing(http.StripPrefix("/files/download/", fs)))
 	})
 	return r
 }

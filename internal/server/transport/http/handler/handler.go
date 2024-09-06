@@ -1,12 +1,15 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/go-chi/chi/v5"
 	log "github.com/sirupsen/logrus"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"strconv"
@@ -260,6 +263,21 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 	}
 }
 
+func UploadFilePOST(w http.ResponseWriter, r *http.Request, fm *storage.FileManager) {
+	chunk, err := ParseChunk(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = fm.SaveChunk(chunk)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func SyncDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
 	claims, ok := jwt.CheckAccess(r)
 	if !ok {
@@ -444,4 +462,61 @@ func RemoveFiles(files []content.BinaryFileInfo) {
 			log.Error(e)
 		}
 	}
+}
+
+func ParseChunk(r *http.Request) (*storage.Chunk, error) {
+	buf := new(bytes.Buffer)
+
+	reader, err := r.MultipartReader()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err = getPart("metadata", reader, buf); err != nil {
+		return nil, err
+	}
+
+	var metadata struct {
+		ChunkNumber   uint64
+		TotalChunks   uint64
+		FileID        int
+		TotalFileSize int64
+	}
+
+	err = json.Unmarshal(buf.Bytes(), &metadata)
+	if err != nil {
+		return nil, err
+	}
+	buf.Reset()
+
+	part, err := reader.NextPart()
+	if err != nil {
+		return nil, err
+	}
+
+	return &storage.Chunk{
+		ChunkNumber:   metadata.ChunkNumber,
+		TotalChunks:   metadata.TotalChunks,
+		FileID:        metadata.FileID,
+		TotalFileSize: metadata.TotalFileSize,
+		Data:          part,
+	}, nil
+}
+
+func getPart(expectedPart string, reader *multipart.Reader, buf *bytes.Buffer) error {
+	part, err := reader.NextPart()
+	if err != nil {
+		return fmt.Errorf("failed reading %s part %w", expectedPart, err)
+	}
+
+	if part.FormName() != expectedPart {
+		return fmt.Errorf("invalid form name for part. Expected %s got %s", expectedPart, part.FormName())
+	}
+
+	if _, err = io.Copy(buf, part); err != nil {
+		return fmt.Errorf("failed copying %s part %w", expectedPart, err)
+	}
+
+	return nil
 }

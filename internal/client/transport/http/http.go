@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"ya-GophKeeper/internal/client/storage"
 	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/constants/urlsuff"
@@ -33,8 +34,8 @@ type UserInfo struct {
 	Password string `json:"password"`
 }
 
-func InitTransport(srvAddr string) *TransportHTTP {
-	return &TransportHTTP{srvAddr: srvAddr}
+func InitTransport(srvAddr string, chunkSize uint64) *TransportHTTP {
+	return &TransportHTTP{srvAddr: srvAddr, chunkSize: chunkSize}
 }
 func (tr *TransportHTTP) Registration(ctx context.Context, userAutData UserInfo) error {
 	client := http.Client{}
@@ -232,7 +233,7 @@ func (tr *TransportHTTP) SyncNewItems(ctx context.Context, items storage.Collect
 	case *storage.Files:
 		//reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeFile)
 		datatype = urlsuff.DatatypeFile
-		return nil
+		//return nil
 	default:
 		return fmt.Errorf("SyncNewItems(TransportHTTP) %s", clerror.ErrIncorrectType)
 	}
@@ -290,22 +291,40 @@ func (tr *TransportHTTP) SyncNewItems(ctx context.Context, items storage.Collect
 
 func (tr *TransportHTTP) UploadFiles(ctx context.Context, files []content.BinaryFileInfo, client *http.Client) error {
 	var returnErr error
+	var wg sync.WaitGroup
+	errorCh := make(chan error)
 	for _, file := range files {
 		fileInfo := content.BinaryFileInfo{
 			FileName: file.FileName,
 			FilePath: file.FilePath,
 		}
-		go func() {
-			err := tr.UploadFile(ctx, fileInfo.FilePath, fileInfo.FileName, client)
+		wg.Add(1)
+		func() {
+			defer wg.Done()
+			err := tr.UploadFile(ctx, fileInfo.FilePath, fileInfo.ID, client)
 			if err != nil {
-				returnErr = fmt.Errorf("%s%s\r\n", returnErr.Error(), err.Error())
+				errorCh <- fmt.Errorf("%s\r\n%s\r\n", fileInfo.FileName, err.Error())
 			}
 		}()
 	}
+
+	go func() {
+		for {
+			newErr, ok := <-errorCh
+			if ok {
+				returnErr = fmt.Errorf("%s%s\r\n", returnErr, newErr.Error())
+			} else {
+				return
+			}
+		}
+	}()
+
+	wg.Wait()
+	close(errorCh)
 	return returnErr
 }
 
-func (tr *TransportHTTP) UploadFile(ctx context.Context, filepath string, fileName string, client *http.Client) error {
+func (tr *TransportHTTP) UploadFile(ctx context.Context, filepath string, fileID int, client *http.Client) error {
 	file, err := os.Open(filepath)
 	if err != nil {
 		return err
@@ -327,7 +346,7 @@ func (tr *TransportHTTP) UploadFile(ctx context.Context, filepath string, fileNa
 			return err
 		}
 
-		err = tr.SendChunk(ctx, partBuffer, fileName, i, totalPartsNum, fileSize, client)
+		err = tr.SendChunk(ctx, partBuffer, fileID, i, totalPartsNum, fileSize, client)
 		if err != nil {
 			return err
 		}
@@ -485,19 +504,19 @@ func BadResponseHandler(r *http.Response, message string) error {
 	}
 }
 
-func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileName string, chunkNumber uint64, chunkCount uint64, totalFileSize int64, client *http.Client) error {
+func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int, chunkNumber uint64, chunkCount uint64, totalFileSize int64, client *http.Client) error {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
 	metadata := struct {
 		ChunkNumber   uint64
 		TotalChunks   uint64
-		FileName      string
+		FileID        int
 		TotalFileSize int64
 	}{
 		ChunkNumber:   chunkNumber,
 		TotalChunks:   chunkCount,
-		FileName:      fileName,
+		FileID:        fileID,
 		TotalFileSize: totalFileSize,
 	}
 	bodyJSON, err := json.Marshal(metadata)
@@ -522,6 +541,7 @@ func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileName s
 	if err != nil {
 		return err
 	}
+	writer.Close()
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.DatatypeFile, urlsuff.FileOperationUpload)
 
 	req, err := http.NewRequest(http.MethodPost, reqURL, body)
@@ -537,6 +557,7 @@ func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileName s
 		transport := &http.Transport{Proxy: proxy}
 		client := &http.Client{Transport: transport}
 	*/
+
 	res, err := client.Do(req)
 	if err != nil {
 		return err

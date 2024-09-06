@@ -54,7 +54,7 @@ func (st *BaseStorage) AddNewFile(file *content.BinaryFileInfo) error {
 	if file.FileName == "" || file.FilePath == "" {
 		return fmt.Errorf("AddNewFile : %w", clerror.ErrAllFieldsMustBeFulled)
 	}
-	tempFilePath := path.Join(st.files.tempDir, uuid.New().String())
+	tempFilePath := path.Join( /*st.files.tempDir,*/ uuid.New().String())
 	size, err := fileSize(file.FilePath)
 	if err != nil {
 		return err

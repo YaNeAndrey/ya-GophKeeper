@@ -10,7 +10,8 @@ import (
 func main() {
 	st := storage.StorageRepo(storage.InitStorageDB("postgresql://postgres:Qwerty123!@localhost:5432/keeper"))
 	managerOTP := otp.InitManagerOTP()
-	r := router.InitRouter(st, managerOTP)
+	fm := storage.InitFileManager("C:\\Users\\pc\\Documents\\GoYandex\\ya-GophKeeper\\Storage")
+	r := router.InitRouter(st, managerOTP, fm)
 	err := http.ListenAndServe(":8080", r)
 	if err != nil {
 		panic(err)

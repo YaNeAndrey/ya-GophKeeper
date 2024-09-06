@@ -204,7 +204,35 @@ func (st *StorageDB) AddNewCredentials(ctx context.Context, login string, creden
 	return credentials, nil
 }
 func (st *StorageDB) AddNewFiles(ctx context.Context, login string, files []content.BinaryFileInfo) ([]content.BinaryFileInfo, error) {
-	return nil, nil
+	db, err := TryToOpenDBConnection(st.connectionString)
+	if err != nil {
+		return nil, err
+	}
+	var userID int
+	userID, err = GetUserID(ctx, login, db)
+	if err != nil {
+		return nil, err
+	}
+	if userID == 0 {
+		return nil, srverror.ErrLoginNotFound
+	}
+	for index, file := range files {
+		var fileID int
+		err = db.QueryRowContext(ctx, "INSERT INTO files(description,file_name,file_path,file_size,modification_time) values($1,$2,$3,$4,$5) RETURNING id_file;", file.Description, file.FileName, file.FilePath, file.FileSize, file.ModificationTime).Scan(&fileID)
+
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		files[index].ID = fileID
+
+		_, err = db.ExecContext(ctx, "INSERT INTO users_files (ID_User,id_file) values ($1,$2)", userID, fileID)
+		if err != nil {
+			log.Println(err)
+			//mb remove credential?
+		}
+	}
+	return files, nil
 }
 func (st *StorageDB) AddNewTexts(ctx context.Context, login string, texts []content.TextInfo) ([]content.TextInfo, error) {
 	db, err := TryToOpenDBConnection(st.connectionString)
