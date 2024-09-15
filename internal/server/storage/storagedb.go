@@ -66,7 +66,7 @@ func InitStorageDB(connectionString string) *StorageDB {
 		log.Println(err)
 		return nil
 	}
-	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Files(ID_File serial PRIMARY KEY, description TEXT, file_name varchar(256) NOT NULL, file_path varchar(256) NOT NULL, file_size int NOT NULL, md5 uuid NOT NULL, modification_time timestamp);")
+	_, err = db.ExecContext(myContext, "CREATE TABLE IF NOT EXISTS Files(ID_File serial PRIMARY KEY, description TEXT, file_name varchar(256) NOT NULL, file_path varchar(256) NOT NULL, file_size int NOT NULL, md5 TEXT NOT NULL, modification_time timestamp);")
 	if err != nil {
 		log.Println(err)
 		return nil
@@ -218,7 +218,7 @@ func (st *StorageDB) AddNewFiles(ctx context.Context, login string, files []cont
 	}
 	for index, file := range files {
 		var fileID int
-		err = db.QueryRowContext(ctx, "INSERT INTO files(description,file_name,file_path,file_size,modification_time) values($1,$2,$3,$4,$5) RETURNING id_file;", file.Description, file.FileName, file.FilePath, file.FileSize, file.ModificationTime).Scan(&fileID)
+		err = db.QueryRowContext(ctx, "INSERT INTO files(description,file_name,file_path,file_size,md5,modification_time) values($1,$2,$3,$4,$5,$6) RETURNING id_file;", file.Description, file.FileName, file.FilePath, file.FileSize, file.MD5, file.ModificationTime).Scan(&fileID)
 
 		if err != nil {
 			log.Println(err)
@@ -368,6 +368,18 @@ func (st *StorageDB) RemoveTexts(ctx context.Context, login string, textIDs []in
 }
 
 func (st *StorageDB) UpdateFiles(ctx context.Context, login string, files []content.BinaryFileInfo) error {
+	db, err := TryToOpenDBConnection(st.connectionString)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		_, err = db.ExecContext(ctx, "UPDATE Files SET description = $2, file_name = $3, file_path = $4, file_size = $5,md5 = $6,modification_time = $7 where ID_File = $1", file.ID, file.Description, file.FileName, file.FilePath, file.FileSize, file.MD5, file.ModificationTime)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+	}
 	return nil
 }
 func (st *StorageDB) UpdateTexts(ctx context.Context, login string, texts []content.TextInfo) error {

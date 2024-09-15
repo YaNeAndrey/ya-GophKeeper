@@ -197,70 +197,74 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 
 	dataType := strings.ToLower(chi.URLParam(r, "Datatype"))
 	login := claims.Login
-	var respBody []byte
-	switch dataType {
-	case urlsuff.DatatypeCredential:
-		var newCreds []content.CredentialInfo
-		err := json.NewDecoder(r.Body).Decode(&newCreds)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		creds, err := st.AddNewCredentials(context.Background(), login, newCreds)
-		if err != nil || creds == nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		respBody, err = json.Marshal(creds)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	case urlsuff.DatatypeCreditCard:
-		var newCards []content.CreditCardInfo
-		err := json.NewDecoder(r.Body).Decode(&newCards)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		cards, err := st.AddNewCreditCards(context.Background(), login, newCards)
-		if err != nil || cards == nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		respBody, err = json.Marshal(cards)
-	case urlsuff.DatatypeText:
-		var newTexts []content.TextInfo
-		err := json.NewDecoder(r.Body).Decode(&newTexts)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		texts, err := st.AddNewTexts(context.Background(), login, newTexts)
-		if err != nil || texts == nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		respBody, err = json.Marshal(texts)
-	case urlsuff.DatatypeFile:
-		var newFiles []content.BinaryFileInfo
-		err := json.NewDecoder(r.Body).Decode(&newFiles)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		files, err := st.AddNewFiles(context.Background(), login, newFiles)
-		if err != nil || files == nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		respBody, err = json.Marshal(files)
-	default:
-		http.Error(w, srverror.ErrIncorrectDataTpe.Error(), http.StatusBadRequest)
-	}
+	if r.Body != http.NoBody {
 
-	w.Header().Set("Content-Type", "application/json")
-	_, err := w.Write(respBody)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		var respBody []byte
+		switch dataType {
+		case urlsuff.DatatypeCredential:
+			var newCreds []content.CredentialInfo
+			err := json.NewDecoder(r.Body).Decode(&newCreds)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			creds, err := st.AddNewCredentials(context.Background(), login, newCreds)
+			if err != nil || creds == nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			respBody, err = json.Marshal(creds)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		case urlsuff.DatatypeCreditCard:
+			var newCards []content.CreditCardInfo
+			err := json.NewDecoder(r.Body).Decode(&newCards)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			cards, err := st.AddNewCreditCards(context.Background(), login, newCards)
+			if err != nil || cards == nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			respBody, err = json.Marshal(cards)
+		case urlsuff.DatatypeText:
+			var newTexts []content.TextInfo
+			err := json.NewDecoder(r.Body).Decode(&newTexts)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			texts, err := st.AddNewTexts(context.Background(), login, newTexts)
+			if err != nil || texts == nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			respBody, err = json.Marshal(texts)
+		case urlsuff.DatatypeFile:
+			var newFiles []content.BinaryFileInfo
+			err := json.NewDecoder(r.Body).Decode(&newFiles)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			files, err := st.AddNewFiles(context.Background(), login, newFiles)
+			if err != nil || files == nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			respBody, err = json.Marshal(files)
+		default:
+			http.Error(w, srverror.ErrIncorrectDataTpe.Error(), http.StatusBadRequest)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write(respBody)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func UploadFilePOST(w http.ResponseWriter, r *http.Request, fm *storage.FileManager) {
@@ -353,6 +357,7 @@ func SyncFirstStep(w http.ResponseWriter, r *http.Request, login string, dataTyp
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(respBody)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

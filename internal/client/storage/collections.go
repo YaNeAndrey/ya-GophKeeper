@@ -1,12 +1,12 @@
 package storage
 
 import (
-	"encoding/json"
 	"time"
+	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/content"
 )
 
-type Collection interface {
+/*type Collection interface {
 	GetRemovedIDs() []int
 	ClearRemovedList()
 
@@ -19,7 +19,7 @@ type Collection interface {
 	RemoveItems([]int)
 
 	Clear()
-}
+}*/
 
 type CreditCards struct {
 	stored  []content.CreditCardInfo
@@ -33,7 +33,7 @@ func (c *CreditCards) ClearRemovedList() {
 	c.removed = nil
 }
 
-func (c *CreditCards) GetNewItems() interface{} {
+func (c *CreditCards) GetNewItems() []content.CreditCardInfo {
 	var items []content.CreditCardInfo
 	for _, item := range c.stored {
 		if item.ID == 0 {
@@ -52,27 +52,21 @@ func (c *CreditCards) RemoveItemsWithoutID() {
 	}
 	c.stored = newStored
 }
-func (c *CreditCards) AddOrUpdateItems(newItemsSlice interface{}) error {
-	var newItemsWithType []content.CreditCardInfo
-	jsonbody, err := json.Marshal(newItemsSlice)
-	if err != nil {
-		// do error check
-		return err
+func (c *CreditCards) AddOrUpdateItems(newItemsSlice []content.CreditCardInfo) error {
+	if newItemsSlice == nil {
+		return clerror.ErrNilSlice
 	}
-	if err = json.Unmarshal(jsonbody, &newItemsWithType); err != nil {
-		return err
-	}
-
+	newItemsCopy := newItemsSlice
 	for i := range c.stored {
-		for j := range newItemsWithType {
-			if c.stored[i].ID == newItemsWithType[j].ID {
-				c.stored[i] = newItemsWithType[j]
-				newItemsWithType = append(newItemsWithType[:j], newItemsWithType[j+1:]...)
+		for j := range newItemsCopy {
+			if c.stored[i].ID == newItemsCopy[j].ID {
+				c.stored[i] = newItemsCopy[j]
+				newItemsCopy = append(newItemsCopy[:j], newItemsCopy[j+1:]...)
 				break
 			}
 		}
 	}
-	c.stored = append(c.stored, newItemsWithType...)
+	c.stored = append(c.stored, newItemsCopy...)
 	return nil
 }
 
@@ -83,7 +77,7 @@ func (c *CreditCards) GetAllIDsWithModtime() map[int]time.Time {
 	}
 	return res
 }
-func (c *CreditCards) GetItems(IDs []int) interface{} {
+func (c *CreditCards) GetItems(IDs []int) []content.CreditCardInfo {
 	if IDs == nil {
 		return c.stored
 	}
@@ -131,7 +125,7 @@ func (c *Credentials) ClearRemovedList() {
 	c.removed = nil
 }
 
-func (c *Credentials) GetNewItems() interface{} {
+func (c *Credentials) GetNewItems() []content.CredentialInfo {
 	var items []content.CredentialInfo
 	for _, item := range c.stored {
 		if item.ID == 0 {
@@ -150,27 +144,18 @@ func (c *Credentials) RemoveItemsWithoutID() {
 	}
 	c.stored = newStored
 }
-func (c *Credentials) AddOrUpdateItems(newItemsSlice interface{}) error {
-	var newItemsWithType []content.CredentialInfo
-	jsonbody, err := json.Marshal(newItemsSlice)
-	if err != nil {
-		// do error check
-		return err
-	}
-	if err = json.Unmarshal(jsonbody, &newItemsWithType); err != nil {
-		return err
-	}
-
+func (c *Credentials) AddOrUpdateItems(newItemsSlice []content.CredentialInfo) error {
+	newItemsCopy := newItemsSlice
 	for i := range c.stored {
-		for j := range newItemsWithType {
-			if c.stored[i].ID == newItemsWithType[j].ID {
-				c.stored[i] = newItemsWithType[j]
-				newItemsWithType = append(newItemsWithType[:j], newItemsWithType[j+1:]...)
+		for j := range newItemsCopy {
+			if c.stored[i].ID == newItemsCopy[j].ID {
+				c.stored[i] = newItemsCopy[j]
+				newItemsCopy = append(newItemsCopy[:j], newItemsCopy[j+1:]...)
 				break
 			}
 		}
 	}
-	c.stored = append(c.stored, newItemsWithType...)
+	c.stored = append(c.stored, newItemsCopy...)
 	return nil
 }
 
@@ -181,7 +166,7 @@ func (c *Credentials) GetAllIDsWithModtime() map[int]time.Time {
 	}
 	return res
 }
-func (c *Credentials) GetItems(IDs []int) interface{} {
+func (c *Credentials) GetItems(IDs []int) []content.CredentialInfo {
 	if IDs == nil {
 		return c.stored
 	}
@@ -229,7 +214,7 @@ func (c *Texts) ClearRemovedList() {
 	c.removed = nil
 }
 
-func (c *Texts) GetNewItems() interface{} {
+func (c *Texts) GetNewItems() []content.TextInfo {
 	var items []content.TextInfo
 	for _, item := range c.stored {
 		if item.ID == 0 {
@@ -248,27 +233,19 @@ func (c *Texts) RemoveItemsWithoutID() {
 	}
 	c.stored = newStored
 }
-func (c *Texts) AddOrUpdateItems(newItemsSlice interface{}) error {
-	var newItemsWithType []content.TextInfo
-	jsonbody, err := json.Marshal(newItemsSlice)
-	if err != nil {
-		// do error check
-		return err
-	}
-	if err = json.Unmarshal(jsonbody, &newItemsWithType); err != nil {
-		return err
-	}
+func (c *Texts) AddOrUpdateItems(newItemsSlice []content.TextInfo) error {
+	newItemsCopy := newItemsSlice
 
 	for i := range c.stored {
-		for j := range newItemsWithType {
-			if c.stored[i].ID == newItemsWithType[j].ID {
-				c.stored[i] = newItemsWithType[j]
-				newItemsWithType = append(newItemsWithType[:j], newItemsWithType[j+1:]...)
+		for j := range newItemsCopy {
+			if c.stored[i].ID == newItemsCopy[j].ID {
+				c.stored[i] = newItemsCopy[j]
+				newItemsCopy = append(newItemsCopy[:j], newItemsCopy[j+1:]...)
 				break
 			}
 		}
 	}
-	c.stored = append(c.stored, newItemsWithType...)
+	c.stored = append(c.stored, newItemsCopy...)
 	return nil
 }
 
@@ -279,7 +256,7 @@ func (c *Texts) GetAllIDsWithModtime() map[int]time.Time {
 	}
 	return res
 }
-func (c *Texts) GetItems(IDs []int) interface{} {
+func (c *Texts) GetItems(IDs []int) []content.TextInfo {
 	if IDs == nil {
 		return c.stored
 	}
@@ -328,7 +305,7 @@ func (c *Files) ClearRemovedList() {
 	c.removed = nil
 }
 
-func (c *Files) GetNewItems() interface{} {
+func (c *Files) GetNewItems() []content.BinaryFileInfo {
 	var items []content.BinaryFileInfo
 	for _, item := range c.stored {
 		if item.ID == 0 {
@@ -347,27 +324,18 @@ func (c *Files) RemoveItemsWithoutID() {
 	}
 	c.stored = newStored
 }
-func (c *Files) AddOrUpdateItems(newItemsSlice interface{}) error {
-	var newItemsWithType []content.BinaryFileInfo
-	jsonbody, err := json.Marshal(newItemsSlice)
-	if err != nil {
-		// do error check
-		return err
-	}
-	if err = json.Unmarshal(jsonbody, &newItemsWithType); err != nil {
-		return err
-	}
-
+func (c *Files) AddOrUpdateItems(newItemsSlice []content.BinaryFileInfo) error {
+	newItemsCopy := newItemsSlice
 	for i := range c.stored {
-		for j := range newItemsWithType {
-			if c.stored[i].ID == newItemsWithType[j].ID {
-				c.stored[i] = newItemsWithType[j]
-				newItemsWithType = append(newItemsWithType[:j], newItemsWithType[j+1:]...)
+		for j := range newItemsCopy {
+			if c.stored[i].ID == newItemsCopy[j].ID {
+				c.stored[i] = newItemsCopy[j]
+				newItemsCopy = append(newItemsCopy[:j], newItemsCopy[j+1:]...)
 				break
 			}
 		}
 	}
-	c.stored = append(c.stored, newItemsWithType...)
+	c.stored = append(c.stored, newItemsCopy...)
 	return nil
 }
 
@@ -378,7 +346,7 @@ func (c *Files) GetAllIDsWithModtime() map[int]time.Time {
 	}
 	return res
 }
-func (c *Files) GetItems(IDs []int) interface{} {
+func (c *Files) GetItems(IDs []int) []content.BinaryFileInfo {
 	if IDs == nil {
 		return c.stored
 	}

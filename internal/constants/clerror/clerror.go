@@ -21,3 +21,5 @@ var ErrInternalServerError = errors.New("internal server error")
 var ErrNotAuthorized = errors.New("not authorized request. try re-login")
 var ErrBadRequest = errors.New("bad request")
 var ErrStatusNotFound = errors.New("incorrect request url")
+
+var ErrNilSlice = errors.New("slice is nil")

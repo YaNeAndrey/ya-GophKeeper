@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"math"
 	"mime/multipart"
@@ -13,11 +12,9 @@ import (
 	"net/textproto"
 	"net/url"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
-	"ya-GophKeeper/internal/client/storage"
 	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/constants/urlsuff"
 	"ya-GophKeeper/internal/content"
@@ -145,26 +142,9 @@ func (tr *TransportHTTP) GetOTP(ctx context.Context) (int, error) {
 	return OTP, nil
 }
 
-func (tr *TransportHTTP) Sync(ctx context.Context, items storage.Collection) error {
+func (tr *TransportHTTP) SyncRemovedItems(ctx context.Context, removedIDs []int, dataType string) error {
 	client := http.Client{}
-	err := tr.SyncRemovedItems(ctx, items, &client)
-	if err != nil {
-		return err
-	}
-	err = tr.SyncNewItems(ctx, items, &client)
-	if err != nil {
-		return err
-	}
-	err = tr.SyncChangesFirstStep(ctx, items, &client)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (tr *TransportHTTP) SyncRemovedItems(ctx context.Context, items storage.Collection, client *http.Client) error {
-	rem := items.GetRemovedIDs()
+	rem := removedIDs
 	if rem == nil {
 		return nil
 	}
@@ -173,27 +153,16 @@ func (tr *TransportHTTP) SyncRemovedItems(ctx context.Context, items storage.Col
 		return err
 	}
 	bodyReader := bytes.NewReader(bodyJSON)
-	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationRemove)
+	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationRemove, dataType)
 	var req *http.Request
-	switch items.(type) {
-	case *storage.Credentials:
-		reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeCredential)
-	case *storage.CreditCards:
-		reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeCreditCard)
-	case *storage.Texts:
-		reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeText)
-	case *storage.Files:
-		reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeFile)
-	default:
-		return fmt.Errorf("SyncRemovedItems(TransportHTTP) %s", clerror.ErrIncorrectType)
-	}
-	req, _ = http.NewRequest(http.MethodPost, reqURL, bodyReader)
+
+	req, _ = http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bodyReader)
 	req.Header.Add("Content-Type", "application/json")
+
 	req.AddCookie(&http.Cookie{
 		Name:  "token",
 		Value: tr.jwtToken,
 	})
-	//add another Headers
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -203,49 +172,15 @@ func (tr *TransportHTTP) SyncRemovedItems(ctx context.Context, items storage.Col
 	if resp.StatusCode != http.StatusOK {
 		return BadResponseHandler(resp, "From sync removed operation (Remove)")
 	}
-	items.ClearRemovedList()
 	return nil
 }
 
-func (tr *TransportHTTP) SyncNewItems(ctx context.Context, items storage.Collection, client *http.Client) error {
-	newItems := items.GetNewItems()
-	if newItems == nil || (reflect.ValueOf(newItems).Kind() == reflect.Ptr && reflect.ValueOf(newItems).IsNil()) {
-		return nil
-	}
-	/*
-		if reflect.ValueOf(newItems).IsNil() {
-			return nil
-		}
-	*/
-	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationInsertNew)
-	var srvAnswer interface{}
-	datatype := ""
-	switch items.(type) {
-	case *storage.Credentials:
-		datatype = urlsuff.DatatypeCredential
-		//reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeCredential)
-	case *storage.CreditCards:
-		//reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeCreditCard)
-		datatype = urlsuff.DatatypeCreditCard
-	case *storage.Texts:
-		//reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeText)
-		datatype = urlsuff.DatatypeText
-	case *storage.Files:
-		//reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeFile)
-		datatype = urlsuff.DatatypeFile
-		//return nil
-	default:
-		return fmt.Errorf("SyncNewItems(TransportHTTP) %s", clerror.ErrIncorrectType)
-	}
-
-	reqURL, _ = url.JoinPath(reqURL, datatype)
-	bodyJSON, err := json.Marshal(newItems)
-	if err != nil {
-		return err
-	}
-	bodyReader := bytes.NewReader(bodyJSON)
+func (tr *TransportHTTP) SyncNewItems(ctx context.Context, bodyWithNewItems []byte, dataType string) ([]byte, error) {
+	client := http.Client{}
+	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationInsertNew, dataType)
+	bodyReader := bytes.NewReader(bodyWithNewItems)
 	var req *http.Request
-	req, _ = http.NewRequest(http.MethodPost, reqURL, bodyReader)
+	req, _ = http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bodyReader)
 	req.Header.Add("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{
 		Name:  "token",
@@ -254,42 +189,49 @@ func (tr *TransportHTTP) SyncNewItems(ctx context.Context, items storage.Collect
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return BadResponseHandler(resp, "From sync new items operation (Add)")
+		return nil, BadResponseHandler(resp, "From sync new items operation (Add)")
 	}
-	err = json.NewDecoder(resp.Body).Decode(&srvAnswer)
-	if err != nil {
-		return err
-	}
-	items.RemoveItemsWithoutID()
-	err = items.AddOrUpdateItems(srvAnswer)
-	if err != nil {
-		return err
-	}
+	srvAns, err := io.ReadAll(resp.Body)
 
-	if datatype == urlsuff.DatatypeFile {
-		var newItemsWithType []content.BinaryFileInfo
-		jsonbody, err := json.Marshal(srvAnswer)
+	return srvAns, err
+
+	/*	err = json.NewDecoder(resp.Body).Decode(&srvAnswer)
 		if err != nil {
 			return err
 		}
-		if err = json.Unmarshal(jsonbody, &newItemsWithType); err != nil {
+		//items.RemoveItemsWithoutID()
+		//	err = items.AddOrUpdateItems(srvAnswer)
+		if err != nil {
 			return err
 		}
 
-		err = tr.UploadFiles(ctx, newItemsWithType, client)
-		if err != nil {
-			log.Println(err)
-			return nil
+		if datatype == urlsuff.DatatypeFile {
+			var newItemsWithType []content.BinaryFileInfo
+			jsonbody, err := json.Marshal(srvAnswer)
+			if err != nil {
+				return err
+			}
+			if err = json.Unmarshal(jsonbody, &newItemsWithType); err != nil {
+				return err
+			}
+
+			err = tr.UploadFiles(ctx, newItemsWithType, client)
+			if err != nil {
+				log.Println(err)
+				return nil
+			}
 		}
-	}
-	return nil
+		return nil
+	*/
+
 }
 
-func (tr *TransportHTTP) UploadFiles(ctx context.Context, files []content.BinaryFileInfo, client *http.Client) error {
+func (tr *TransportHTTP) UploadFiles(ctx context.Context, files []content.BinaryFileInfo) error {
+	client := http.Client{}
 	var returnErr error
 	var wg sync.WaitGroup
 	errorCh := make(chan error)
@@ -301,7 +243,7 @@ func (tr *TransportHTTP) UploadFiles(ctx context.Context, files []content.Binary
 		wg.Add(1)
 		func() {
 			defer wg.Done()
-			err := tr.UploadFile(ctx, fileInfo.FilePath, fileInfo.ID, client)
+			err := tr.UploadFile(ctx, fileInfo.FilePath, fileInfo.ID, &client)
 			if err != nil {
 				errorCh <- fmt.Errorf("%s\r\n%s\r\n", fileInfo.FileName, err.Error())
 			}
@@ -354,41 +296,18 @@ func (tr *TransportHTTP) UploadFile(ctx context.Context, filepath string, fileID
 	return nil
 }
 
-func (tr *TransportHTTP) SyncChangesFirstStep(ctx context.Context, items storage.Collection, client *http.Client) error {
-	IDsWithModtime := items.GetAllIDsWithModtime()
-	bodyJSON, err := json.Marshal(IDsWithModtime)
-	if err != nil {
-		return err
-	}
-	bodyReader := bytes.NewReader(bodyJSON)
-	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationSync)
+func (tr *TransportHTTP) SyncChangesFirstStep(ctx context.Context, bodyIDsWithModtime []byte, dataType string) ([]byte, error) {
+	client := http.Client{}
+	bodyReader := bytes.NewReader(bodyIDsWithModtime)
+	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationSync, dataType, "1")
 	var req *http.Request
-	srvAnswer := struct {
-		DataForSrv    []int       `json:",omitempty"`
-		RemoveFromCli []int       `json:",omitempty"`
-		DataForCli    interface{} `json:",omitempty"`
-	}{}
-	datatype := ""
-	switch items.(type) {
-	case *storage.Credentials:
-		datatype = urlsuff.DatatypeCredential
-		//reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeCredential)
-	case *storage.CreditCards:
-		datatype = urlsuff.DatatypeCreditCard
-		//reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeCreditCard)
-	case *storage.Texts:
-		datatype = urlsuff.DatatypeText
-		//reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeText)
-	case *storage.Files:
-		datatype = urlsuff.DatatypeFile
-		//reqURL, _ = url.JoinPath(reqURL, urlsuff.DatatypeFile)
-	default:
-		return fmt.Errorf("SyncChangesFirstStep(TransportHTTP) %s", clerror.ErrIncorrectType)
-	}
-
-	reqURL, _ = url.JoinPath(reqURL, datatype)
-	reqURL, _ = url.JoinPath(reqURL, "1")
-	req, _ = http.NewRequest(http.MethodPost, reqURL, bodyReader)
+	/*	srvAnswer := struct {
+			DataForSrv    []int       `json:",omitempty"`
+			RemoveFromCli []int       `json:",omitempty"`
+			DataForCli    interface{} `json:",omitempty"`
+		}{}
+	*/
+	req, _ = http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bodyReader)
 	req.Header.Add("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{
 		Name:  "token",
@@ -397,45 +316,49 @@ func (tr *TransportHTTP) SyncChangesFirstStep(ctx context.Context, items storage
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return BadResponseHandler(resp, "From sync changes operation step one (Update)")
-	}
-	err = json.NewDecoder(resp.Body).Decode(&srvAnswer)
-	if err != nil {
-		return err
-	}
-	err = items.AddOrUpdateItems(srvAnswer.DataForCli)
-	if err != nil {
-		return err
-	}
-	if srvAnswer.RemoveFromCli != nil {
-		items.RemoveItems(srvAnswer.RemoveFromCli)
-	}
 
-	if srvAnswer.DataForSrv == nil {
+	if resp.StatusCode != http.StatusOK {
+		return nil, BadResponseHandler(resp, "From sync changes operation step one (Update)")
+	}
+	/*
+	   srvAnswer := struct {
+	   		DataForSrv    []int                    `json:",omitempty"`
+	   		RemoveFromCli []int                    `json:",omitempty"`
+	   		DataForCli    []content.CredentialInfo `json:",omitempty"`
+	   	}{}
+	   	err = json.NewDecoder(resp.Body).Decode(&srvAnswer)
+	*/
+	srvAns, err := io.ReadAll(resp.Body)
+	return srvAns, err
+	/*
+		err = items.AddOrUpdateItems(srvAnswer.DataForCli)
+		if err != nil {
+			return err
+		}
+		if srvAnswer.RemoveFromCli != nil {
+			items.RemoveItems(srvAnswer.RemoveFromCli)
+		}
+
+		if srvAnswer.DataForSrv == nil {
+			return nil
+		}
+		err = tr.SyncChangesSecondStep(ctx, items, srvAnswer.DataForSrv, datatype, client)
+		if err != nil {
+			return err
+		}
 		return nil
-	}
-	err = tr.SyncChangesSecondStep(ctx, items, srvAnswer.DataForSrv, datatype, client)
-	if err != nil {
-		return err
-	}
-	return nil
+	*/
 }
 
-func (tr *TransportHTTP) SyncChangesSecondStep(ctx context.Context, items storage.Collection, sendingItemsIDs []int, datatype string, client *http.Client) error {
-	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationSync, datatype)
+func (tr *TransportHTTP) SyncChangesSecondStep(ctx context.Context, bodyDataForSrv []byte, dataType string) error {
+	client := http.Client{}
+	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationSync, dataType, "2")
 
-	itemsForServer := items.GetItems(sendingItemsIDs)
-	bodyJSON, err := json.Marshal(itemsForServer)
-	if err != nil {
-		return err
-	}
-	reqURL, _ = url.JoinPath(reqURL, "2")
-	bodyReader := bytes.NewReader(bodyJSON)
-	req, _ := http.NewRequest(http.MethodPost, reqURL, bodyReader)
+	bodyReader := bytes.NewReader(bodyDataForSrv)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bodyReader)
 	req.Header.Add("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{
 		Name:  "token",
@@ -449,27 +372,28 @@ func (tr *TransportHTTP) SyncChangesSecondStep(ctx context.Context, items storag
 	if resp.StatusCode != http.StatusOK {
 		return BadResponseHandler(resp, "From sync changes operation step two (Update)")
 	}
+	/*
+		if datatype == urlsuff.DatatypeFile {
+			var newItemsWithType []content.BinaryFileInfo
+			jsonbody, err := json.Marshal(itemsForServer)
+			if err != nil {
+				// do error check
+				return err
+			}
+			if err = json.Unmarshal(jsonbody, &newItemsWithType); err != nil {
+				log.Println(err)
+				return nil
+			}
 
-	if datatype == urlsuff.DatatypeFile {
-		var newItemsWithType []content.BinaryFileInfo
-		jsonbody, err := json.Marshal(itemsForServer)
-		if err != nil {
-			// do error check
-			return err
+			err = tr.UploadFiles(ctx, newItemsWithType, client)
+			if err != nil {
+				log.Println(err)
+				return nil
+			}
 		}
-		if err = json.Unmarshal(jsonbody, &newItemsWithType); err != nil {
-			log.Println(err)
-			return nil
-		}
-
-		err = tr.UploadFiles(ctx, newItemsWithType, client)
-		if err != nil {
-			log.Println(err)
-			return nil
-		}
-	}
-
+	*/
 	return nil
+
 }
 
 func BadResponseHandler(r *http.Response, message string) error {

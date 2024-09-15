@@ -3,15 +3,15 @@ package client
 import (
 	"bufio"
 	"context"
+	"crypto/md5"
 	"errors"
 	"fmt"
-	"github.com/gosuri/uilive"
 	log "github.com/sirupsen/logrus"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-	"ya-GophKeeper/internal/client/storage"
 	"ya-GophKeeper/internal/client/transport/http"
 	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/constants/urlsuff"
@@ -502,11 +502,17 @@ func ReadBinaryFile() (int, *content.BinaryFileInfo, error) {
 
 	fmt.Println("File path for reading. Max file size: 4GB. : ")
 	filePath := ReadOneLine()
+
+	MD5, err := checksumMD5(filePath)
+	if err != nil {
+		return 0, nil, err
+	}
 	return index, &content.BinaryFileInfo{
 		FileName:         fileName,
 		FilePath:         filePath,
 		Description:      description,
 		ModificationTime: time.Now(),
+		MD5:              MD5,
 	}, nil
 }
 func ReadText() (int, *content.TextInfo, error) {
@@ -544,16 +550,16 @@ func Synchronization(c *Client) bool {
 	fmt.Println("6) Return to previous page")
 	answer := ReadOneLine()
 
-	var collection storage.Collection
+	dataType := ""
 	switch answer {
 	case "1":
-		collection = c.storage.GetCredentialsData()
+		dataType = urlsuff.DatatypeCredential
 	case "2":
-		collection = c.storage.GetCreditCardsData()
+		dataType = urlsuff.DatatypeCreditCard
 	case "3":
-		collection = c.storage.GetTextsData()
+		dataType = urlsuff.DatatypeText
 	case "4":
-		collection = c.storage.GetFilesData()
+		dataType = urlsuff.DatatypeFile
 	case "5":
 		err := FullSync(c)
 		if err != nil {
@@ -567,7 +573,7 @@ func Synchronization(c *Client) bool {
 		fmt.Println("Incorrect input")
 		return true
 	}
-	err := SyncCollection(c, collection)
+	err := SyncCollection(c, dataType)
 	if err != nil {
 		log.Println(err)
 		return false
@@ -575,94 +581,13 @@ func Synchronization(c *Client) bool {
 	return true
 }
 
-func SyncCollection(c *Client, collection storage.Collection) error {
-	finishCh := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	go SynchronizationPrinter(ctx, finishCh)
-
-	err := c.transport.Sync(context.Background(), collection)
-	cancel()
-	<-finishCh
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func SyncMonitor(c *Client, ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-
-		case <-time.After(c.config.SyncInterval):
-			err := FullSync(c)
-			if err != nil {
-				log.Println(err)
-			}
-		}
-	}
-}
-
-func SynchronizationPrinter(ctx context.Context, finishCh chan struct{}) {
-	writer := uilive.New()
-	writer.Start()
-	defer writer.Stop()
-
-	for i := 1; ; i++ {
-		select {
-		case <-ctx.Done():
-			fmt.Fprintf(writer, "Synchronization complete\n")
-			finishCh <- struct{}{}
-			return
-		default:
-			str := ""
-			for j := 0; j < i%20; j++ {
-				str += "*"
-			}
-			fmt.Fprintf(writer, "Synchronization: %s\n", str)
-		}
-		time.Sleep(time.Millisecond * 10)
-	}
-}
-
-func FullSync(c *Client) error {
-	fmt.Print("Credentials: ")
-	err := SyncCollection(c, c.storage.GetCredentialsData())
-	if err != nil {
-		return err
-	}
-	fmt.Print("Credit Cards: ")
-	err = SyncCollection(c, c.storage.GetCreditCardsData())
-	if err != nil {
-		return err
-	}
-	fmt.Print("Texts: ")
-	err = SyncCollection(c, c.storage.GetTextsData())
-	if err != nil {
-		return err
-	}
-	/*
-		fmt.Print("Files: ")
-		err = SyncCollection(c, c.storage.GetFilesData())
-		if err != nil {
-			return err
-		}
-	*/
-	return nil
-}
-
 func PrintCreditCards(c *Client) bool {
 	fmt.Println("*******************************************")
 	fmt.Println("Credit cards:")
 	cardsInfo := c.storage.GetCreditCardsData()
 	cards := cardsInfo.GetItems(nil)
-	switch t := cards.(type) {
-	case []content.CreditCardInfo:
-		for i, card := range t {
-			fmt.Printf("%d) %s", i, card.String())
-		}
+	for i, card := range cards {
+		fmt.Printf("%d) %s", i, card.String())
 	}
 	return false
 }
@@ -673,11 +598,8 @@ func PrintFiles(c *Client) bool {
 
 	filesInfo := c.storage.GetFilesData()
 	files := filesInfo.GetItems(nil)
-	switch t := files.(type) {
-	case []content.BinaryFileInfo:
-		for i, file := range t {
-			fmt.Printf("%d) %s", i, file.String())
-		}
+	for i, file := range files {
+		fmt.Printf("%d) %s", i, file.String())
 	}
 	return false
 }
@@ -687,11 +609,8 @@ func PrintTexts(c *Client) bool {
 
 	textsInfo := c.storage.GetTextsData()
 	texts := textsInfo.GetItems(nil)
-	switch t := texts.(type) {
-	case []content.TextInfo:
-		for i, text := range t {
-			fmt.Printf("%d) %s", i, text.String())
-		}
+	for i, text := range texts {
+		fmt.Printf("%d) %s", i, text.String())
 	}
 	return false
 }
@@ -700,12 +619,10 @@ func PrintCredentials(c *Client) bool {
 	fmt.Println("Credentials:")
 	credsInfo := c.storage.GetCredentialsData()
 	creds := credsInfo.GetItems(nil)
-	switch t := creds.(type) {
-	case []content.CredentialInfo:
-		for i, cred := range t {
-			fmt.Printf("%d) %s", i, cred.String())
-		}
+	for i, cred := range creds {
+		fmt.Printf("%d) %s", i, cred.String())
 	}
+
 	return false
 }
 
@@ -829,4 +746,19 @@ func CheckCVV(cvvStr string) error {
 		return nil
 	}
 	return clerror.ErrIncorrectValueCVV
+}
+
+func checksumMD5(filePath string) (string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := md5.New()
+	if _, err = io.Copy(h, f); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
