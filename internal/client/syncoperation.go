@@ -358,12 +358,11 @@ func SyncMonitor(c *Client, ctx context.Context) {
 func SynchronizationPrinter(ctx context.Context, finishCh chan struct{}) {
 	writer := uilive.New()
 	writer.Start()
-	defer writer.Stop()
-
 	for i := 1; ; i++ {
 		select {
 		case <-ctx.Done():
-			fmt.Fprintf(writer, "Synchronization complete\n")
+			fmt.Println("Synchronization complete")
+			writer.Stop()
 			finishCh <- struct{}{}
 			return
 		default:
@@ -373,28 +372,28 @@ func SynchronizationPrinter(ctx context.Context, finishCh chan struct{}) {
 			}
 			fmt.Fprintf(writer, "Synchronization: %s\n", str)
 		}
-		time.Sleep(time.Millisecond * 10)
+		time.Sleep(time.Millisecond * 100)
 	}
 }
 
 func FullSync(c *Client) error {
-	fmt.Print("Credentials: ")
+	fmt.Println("Credentials: ")
 	err := SyncCollection(c, urlsuff.DatatypeCredential)
 	if err != nil {
 		return err
 	}
-	fmt.Print("Credit Cards: ")
+	fmt.Println("Credit Cards: ")
 	err = SyncCollection(c, urlsuff.DatatypeCreditCard)
 	if err != nil {
 		return err
 	}
-	fmt.Print("Texts: ")
+	fmt.Println("Texts: ")
 	err = SyncCollection(c, urlsuff.DatatypeText)
 	if err != nil {
 		return err
 	}
 
-	fmt.Print("Files: ")
+	fmt.Println("Files: ")
 	err = SyncCollection(c, urlsuff.DatatypeFile)
 	if err != nil {
 		return err
