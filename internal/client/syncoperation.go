@@ -56,20 +56,19 @@ func SyncCreditCards(c *Client) error {
 		if err != nil {
 			return err
 		}
-		var newCreditCardsFromSrv []content.CreditCardInfo
-		err = json.Unmarshal(srvAns, &newCreditCardsFromSrv)
+		var updatedCreditCardsInfo []content.CreditCardInfo
+		err = json.Unmarshal(srvAns, &updatedCreditCardsInfo)
 		if err != nil {
 			return err
 		}
 		creditCards.RemoveItemsWithoutID()
-		err = creditCards.AddOrUpdateItems(newCreditCardsFromSrv)
+		err = creditCards.AddOrUpdateItems(updatedCreditCardsInfo)
 		if err != nil {
 			log.Println(err)
 		}
 	}
 
 	IDsWithModtime := creditCards.GetAllIDsWithModtime()
-	//if IDsWithModtime == nil {
 	bodyJSON, err := json.Marshal(IDsWithModtime)
 	if err != nil {
 		return err
@@ -108,7 +107,6 @@ func SyncCreditCards(c *Client) error {
 			return err
 		}
 	}
-	//}
 	return nil
 }
 func SyncCredentials(c *Client) error {
@@ -132,20 +130,19 @@ func SyncCredentials(c *Client) error {
 		if err != nil {
 			return err
 		}
-		var newCredentialsFromSrv []content.CredentialInfo
-		err = json.Unmarshal(srvAns, &newCredentialsFromSrv)
+		var updatedCredentialsInfo []content.CredentialInfo
+		err = json.Unmarshal(srvAns, &updatedCredentialsInfo)
 		if err != nil {
 			return err
 		}
 		credentials.RemoveItemsWithoutID()
-		err = credentials.AddOrUpdateItems(newCredentialsFromSrv)
+		err = credentials.AddOrUpdateItems(updatedCredentialsInfo)
 		if err != nil {
 			log.Println(err)
 		}
 	}
 
 	IDsWithModtime := credentials.GetAllIDsWithModtime()
-	//if IDsWithModtime == nil {
 	bodyJSON, err := json.Marshal(IDsWithModtime)
 	if err != nil {
 		return err
@@ -184,7 +181,6 @@ func SyncCredentials(c *Client) error {
 			return err
 		}
 	}
-	//}
 	return nil
 }
 func SyncTexts(c *Client) error {
@@ -208,20 +204,19 @@ func SyncTexts(c *Client) error {
 		if err != nil {
 			return err
 		}
-		var newTextsFromSrv []content.TextInfo
-		err = json.Unmarshal(srvAns, &newTextsFromSrv)
+		var updatedTextsInfo []content.TextInfo
+		err = json.Unmarshal(srvAns, &updatedTextsInfo)
 		if err != nil {
 			return err
 		}
 		texts.RemoveItemsWithoutID()
-		err = texts.AddOrUpdateItems(newTextsFromSrv)
+		err = texts.AddOrUpdateItems(updatedTextsInfo)
 		if err != nil {
 			log.Println(err)
 		}
 	}
 
 	IDsWithModtime := texts.GetAllIDsWithModtime()
-	//if IDsWithModtime == nil {
 	bodyJSON, err := json.Marshal(IDsWithModtime)
 	if err != nil {
 		return err
@@ -260,7 +255,6 @@ func SyncTexts(c *Client) error {
 			return err
 		}
 	}
-	//}
 	return nil
 }
 func SyncFiles(c *Client) error {
@@ -284,20 +278,24 @@ func SyncFiles(c *Client) error {
 		if err != nil {
 			return err
 		}
-		var newFilesFromSrv []content.BinaryFileInfo
-		err = json.Unmarshal(srvAns, &newFilesFromSrv)
+		var updatedFilesInfo []content.BinaryFileInfo
+		err = json.Unmarshal(srvAns, &updatedFilesInfo)
 		if err != nil {
 			return err
 		}
 		files.RemoveItemsWithoutID()
-		err = files.AddOrUpdateItems(newFilesFromSrv)
+		err = files.AddOrUpdateItems(updatedFilesInfo)
 		if err != nil {
 			log.Println(err)
+		}
+		err = c.transport.UploadFiles(ctx, updatedFilesInfo)
+		if err != nil {
+			log.Println(err)
+			return nil
 		}
 	}
 
 	IDsWithModtime := files.GetAllIDsWithModtime()
-	//if IDsWithModtime == nil {
 	bodyJSON, err := json.Marshal(IDsWithModtime)
 	if err != nil {
 		return err
@@ -335,8 +333,12 @@ func SyncFiles(c *Client) error {
 		if err != nil {
 			return err
 		}
+		err = c.transport.UploadFiles(ctx, itemsForServer)
+		if err != nil {
+			log.Println(err)
+			return nil
+		}
 	}
-	//}
 	return nil
 }
 
