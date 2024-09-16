@@ -267,17 +267,50 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 	w.WriteHeader(http.StatusOK)
 }
 
-func UploadFilePOST(w http.ResponseWriter, r *http.Request, fm *storage.FileManager) {
+func UploadFilePOST(w http.ResponseWriter, r *http.Request, fm *storage.FileManager, st storage.StorageRepo) {
+	claims, ok := jwt.CheckAccess(r)
+	if !ok {
+		http.Error(w, "", http.StatusUnauthorized)
+		return
+	}
+
 	chunk, err := ParseChunk(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	err = fm.SaveChunk(chunk)
+	fileName, err := fm.SaveChunk(chunk)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if fileName != "" {
+		fileHash, err := fm.GetFileHash(fileName)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		hashOK, err := st.CheckFileHash(context.Background(), chunk.FileID, fileHash)
+		if err == nil {
+			if hashOK {
+				err := st.UpdateFilePath(context.Background(), chunk.FileID, fileName)
+				if err != nil {
+					http.Error(w, srverror.ErrIncorrectFileHash.Error(), http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+				return
+			} else {
+				//TODO: What if db problem?
+				_ = st.RemoveFiles(context.Background(), claims.Login, []int{chunk.FileID})
+				http.Error(w, srverror.ErrIncorrectFileHash.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 	w.WriteHeader(http.StatusOK)
 }

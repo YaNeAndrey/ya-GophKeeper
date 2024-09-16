@@ -89,7 +89,7 @@ func (st *StorageDB) AddNewUser(ctx context.Context, login string, password stri
 		return err
 	}
 	defer db.Close()
-	_, err = GetUserID(ctx, login, db)
+	_, err = getUserID(ctx, login, db)
 	if errors.Is(err, sql.ErrNoRows) {
 		_, err = db.ExecContext(ctx, "INSERT INTO Users(login,passwd) values($1, crypt($2, gen_salt('bf')));", login, password)
 		if err != nil {
@@ -150,7 +150,7 @@ func (st *StorageDB) AddNewCreditCards(ctx context.Context, login string, credit
 	}
 	defer db.Close()
 	var userID int
-	userID, err = GetUserID(ctx, login, db)
+	userID, err = getUserID(ctx, login, db)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func (st *StorageDB) AddNewCredentials(ctx context.Context, login string, creden
 	}
 	defer db.Close()
 	var userID int
-	userID, err = GetUserID(ctx, login, db)
+	userID, err = getUserID(ctx, login, db)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (st *StorageDB) AddNewFiles(ctx context.Context, login string, files []cont
 	}
 	defer db.Close()
 	var userID int
-	userID, err = GetUserID(ctx, login, db)
+	userID, err = getUserID(ctx, login, db)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (st *StorageDB) AddNewTexts(ctx context.Context, login string, texts []cont
 	}
 	defer db.Close()
 	var userID int
-	userID, err = GetUserID(ctx, login, db)
+	userID, err = getUserID(ctx, login, db)
 	if err != nil {
 		return nil, err
 	}
@@ -279,14 +279,14 @@ func (st *StorageDB) RemoveCreditCards(ctx context.Context, login string, credit
 	}
 	defer db.Close()
 	var userID int
-	userID, err = GetUserID(ctx, login, db)
+	userID, err = getUserID(ctx, login, db)
 	if err != nil {
 		return err
 	}
 	if userID == 0 {
 		return srverror.ErrLoginNotFound
 	}
-
+	//TODO: Check access
 	_, err = db.ExecContext(ctx, "DELETE FROM Users_CreditCards where ID_CreditCard = any($1) and ID_User = $2", pq.Array(creditCardIDs), userID)
 	if err != nil {
 		log.Println(err)
@@ -305,14 +305,14 @@ func (st *StorageDB) RemoveCredentials(ctx context.Context, login string, creden
 	}
 	defer db.Close()
 	var userID int
-	userID, err = GetUserID(ctx, login, db)
+	userID, err = getUserID(ctx, login, db)
 	if err != nil {
 		return err
 	}
 	if userID == 0 {
 		return srverror.ErrLoginNotFound
 	}
-
+	//TODO: Check access
 	_, err = db.ExecContext(ctx, "DELETE FROM Users_Credentials where id_credential = any($1) and ID_User = $2", pq.Array(credentialIDs), userID)
 	if err != nil {
 		log.Println(err)
@@ -331,14 +331,14 @@ func (st *StorageDB) RemoveFiles(ctx context.Context, login string, fileIDs []in
 	}
 	defer db.Close()
 	var userID int
-	userID, err = GetUserID(ctx, login, db)
+	userID, err = getUserID(ctx, login, db)
 	if err != nil {
 		return err
 	}
 	if userID == 0 {
 		return srverror.ErrLoginNotFound
 	}
-
+	//TODO: Check access
 	_, err = db.ExecContext(ctx, "DELETE FROM users_files where id_file = any($1) and ID_User = $2", pq.Array(fileIDs), userID)
 	if err != nil {
 		log.Println(err)
@@ -357,7 +357,7 @@ func (st *StorageDB) RemoveTexts(ctx context.Context, login string, textIDs []in
 	}
 	defer db.Close()
 	var userID int
-	userID, err = GetUserID(ctx, login, db)
+	userID, err = getUserID(ctx, login, db)
 	if err != nil {
 		return err
 	}
@@ -365,11 +365,9 @@ func (st *StorageDB) RemoveTexts(ctx context.Context, login string, textIDs []in
 		return srverror.ErrLoginNotFound
 	}
 
+	//TODO: Check access
 	_, err = db.ExecContext(ctx, "DELETE FROM users_texts where id_text = any($1) and ID_User = $2", pq.Array(textIDs), userID)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
+
 	_, err = db.ExecContext(ctx, "DELETE FROM texts where id_text = any($1)", pq.Array(textIDs))
 	if err != nil {
 		return err
@@ -383,7 +381,24 @@ func (st *StorageDB) UpdateFiles(ctx context.Context, login string, files []cont
 		return err
 	}
 	defer db.Close()
+	var userID int
+	userID, err = getUserID(ctx, login, db)
+	if err != nil {
+		return err
+	}
+	if userID == 0 {
+		return srverror.ErrLoginNotFound
+	}
 	for _, file := range files {
+		var accessOK bool
+		err = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users_files WHERE id_user = $1 AND id_file = $2)", userID, file.ID).Scan(&accessOK)
+		if err != nil {
+			return err
+		}
+		if !accessOK {
+			log.Println(srverror.ErrDBModificationDenied)
+			continue
+		}
 		_, err = db.ExecContext(ctx, "UPDATE Files SET description = $2, file_name = $3, file_path = $4, file_size = $5,md5 = $6,modification_time = $7 where ID_File = $1", file.ID, file.Description, file.FileName, file.FilePath, file.FileSize, file.MD5, file.ModificationTime)
 		if err != nil {
 			log.Println(err)
@@ -398,7 +413,26 @@ func (st *StorageDB) UpdateTexts(ctx context.Context, login string, texts []cont
 		return err
 	}
 	defer db.Close()
+	var userID int
+	userID, err = getUserID(ctx, login, db)
+	if err != nil {
+		return err
+	}
+	if userID == 0 {
+		return srverror.ErrLoginNotFound
+	}
+
 	for _, text := range texts {
+		var accessOK bool
+		err = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users_texts WHERE id_user = $1 AND id_text = $2)", userID, text.ID).Scan(&accessOK)
+		if err != nil {
+			return err
+		}
+		if !accessOK {
+			log.Println(srverror.ErrDBModificationDenied)
+			continue
+		}
+
 		_, err = db.ExecContext(ctx, "UPDATE Texts SET description = $2, content = $3, modification_time = $4 where ID_Text = $1", text.ID, text.Description, text.Content, text.ModificationTime)
 		if err != nil {
 			log.Println(err)
@@ -413,7 +447,24 @@ func (st *StorageDB) UpdateCreditCards(ctx context.Context, login string, credit
 		return err
 	}
 	defer db.Close()
+	var userID int
+	userID, err = getUserID(ctx, login, db)
+	if err != nil {
+		return err
+	}
+	if userID == 0 {
+		return srverror.ErrLoginNotFound
+	}
 	for _, card := range creditCards {
+		var accessOK bool
+		err = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users_creditcards WHERE id_user = $1 AND id_creditcard = $2)", userID, card.ID).Scan(&accessOK)
+		if err != nil {
+			return err
+		}
+		if !accessOK {
+			log.Println(srverror.ErrDBModificationDenied)
+			continue
+		}
 		_, err = db.ExecContext(ctx, "UPDATE CreditCards SET bank = $2, card_number = $3, valid_thru = $4,cvv = $5, modification_time = $6 WHERE id_creditcard = $1", card.ID, card.Bank, card.CardNumber, card.ValidThru, card.CVV, card.ModificationTime)
 		if err != nil {
 			log.Println(err)
@@ -428,7 +479,25 @@ func (st *StorageDB) UpdateCredentials(ctx context.Context, login string, creden
 		return err
 	}
 	defer db.Close()
+	var userID int
+	userID, err = getUserID(ctx, login, db)
+	if err != nil {
+		return err
+	}
+	if userID == 0 {
+		return srverror.ErrLoginNotFound
+	}
+
 	for _, cred := range credentials {
+		var accessOK bool
+		err = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users_credentials WHERE id_user = $1 AND id_credential = $2)", userID, cred.ID).Scan(&accessOK)
+		if err != nil {
+			return err
+		}
+		if !accessOK {
+			log.Println(srverror.ErrDBModificationDenied)
+			continue
+		}
 		_, err = db.ExecContext(ctx, "UPDATE Credentials SET resource = $2, login = $3, passwd = $4,modification_time = $5 where id_credential = $1", cred.ID, cred.Resource, cred.Login, cred.Password, cred.ModificationTime)
 		if err != nil {
 			log.Println(err)
@@ -436,6 +505,58 @@ func (st *StorageDB) UpdateCredentials(ctx context.Context, login string, creden
 		}
 	}
 	return nil
+}
+
+func (st *StorageDB) UpdateFilePath(ctx context.Context, login string, fileID int, newFilePath string) error {
+	db, err := TryToOpenDBConnection(st.connectionString)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	var userID int
+	userID, err = getUserID(ctx, login, db)
+	if err != nil {
+		return err
+	}
+	if userID == 0 {
+		return srverror.ErrLoginNotFound
+	}
+
+	var accessOK bool
+	err = db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users_files WHERE id_user = $1 AND id_file = $2)", userID, fileID).Scan(&accessOK)
+	if err != nil {
+		return err
+	}
+
+	if !accessOK {
+		return srverror.ErrDBModificationDenied
+	}
+	_, err = db.ExecContext(ctx, "UPDATE Files SET file_path = $2 where ID_File = $1", fileID, newFilePath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (st *StorageDB) CheckFileHash(ctx context.Context, fileID int, MD5 string) (bool, error) {
+	db, err := TryToOpenDBConnection(st.connectionString)
+	if err != nil {
+		return false, err
+	}
+	defer db.Close()
+	var hashOK bool
+	err = db.QueryRowContext(ctx, "SELECT (case when (files.md5 = $2) then 'True' else 'False' end) as ok FROM files WHERE id_file = $1", fileID, MD5).Scan(&hashOK)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return false, srverror.ErrFileNotFound
+		default:
+			return false, err
+		}
+	}
+
+	return hashOK, nil
 }
 
 func (st *StorageDB) GetCreditCards(ctx context.Context, login string, cardIDs []int) ([]content.CreditCardInfo, error) {
@@ -448,7 +569,7 @@ func (st *StorageDB) GetCreditCards(ctx context.Context, login string, cardIDs [
 	}
 	defer db.Close()
 	var userID int
-	userID, err = GetUserID(ctx, login, db)
+	userID, err = getUserID(ctx, login, db)
 	if err != nil {
 		return nil, err
 	}
@@ -480,7 +601,7 @@ func (st *StorageDB) GetCredentials(ctx context.Context, login string, credIDs [
 		return nil, err
 	}
 	var userID int
-	userID, err = GetUserID(ctx, login, db)
+	userID, err = getUserID(ctx, login, db)
 	if err != nil {
 		return nil, err
 	}
@@ -512,7 +633,7 @@ func (st *StorageDB) GetFiles(ctx context.Context, login string, fileIDs []int) 
 	}
 	defer db.Close()
 	var userID int
-	userID, err = GetUserID(ctx, login, db)
+	userID, err = getUserID(ctx, login, db)
 	if err != nil {
 		return nil, err
 	}
@@ -544,7 +665,7 @@ func (st *StorageDB) GetTexts(ctx context.Context, login string, textIDs []int) 
 	}
 	defer db.Close()
 	var userID int
-	userID, err = GetUserID(ctx, login, db)
+	userID, err = getUserID(ctx, login, db)
 	if err != nil {
 		return nil, err
 	}
@@ -623,7 +744,7 @@ func (st *StorageDB) GetModtimeWithIDs(ctx context.Context, login string, dataTy
 	return res, nil
 }
 
-func GetUserID(ctx context.Context, login string, db *sql.DB) (int, error) {
+func getUserID(ctx context.Context, login string, db *sql.DB) (int, error) {
 	var id int
 	err := db.QueryRowContext(ctx, "SELECT Users.ID_User FROM Users WHERE login = $1", login).Scan(&id)
 	if err != nil {

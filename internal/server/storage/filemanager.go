@@ -1,11 +1,14 @@
 package storage
 
 import (
+	"crypto/md5"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"strconv"
+
+	"github.com/google/uuid"
 )
 
 type FileManager struct {
@@ -24,28 +27,41 @@ func InitFileManager(storageDir string) *FileManager {
 	return &FileManager{storageDir: storageDir}
 }
 
-func (fm *FileManager) SaveChunk(chunk *Chunk) error {
+func (fm *FileManager) GetFileHash(fileName string) (string, error) {
+	fullFilePath := path.Join(fm.storageDir, fileName)
+	return checksumMD5(fullFilePath)
+}
+
+func (fm *FileManager) RemoveFile(fileName string) error {
+	fullFilePath := path.Join(fm.storageDir, fileName)
+	return os.Remove(fullFilePath)
+}
+
+func (fm *FileManager) SaveChunk(chunk *Chunk) (string, error) {
 	if err := os.MkdirAll(path.Join(fm.storageDir, strconv.Itoa(chunk.FileID)), 02750); err != nil {
-		return err
+		return "", err
 	}
 
 	if err := fm.StoreChunk(chunk); err != nil {
-		return err
+		return "", err
 	}
 
 	if chunk.ChunkNumber == (chunk.TotalChunks - 1) {
-		err := fm.buildFileFromChunks(strconv.Itoa(chunk.FileID), chunk.ChunkNumber)
+		newFileName := uuid.New().String()
+		err := fm.buildFileFromChunks(newFileName, chunk.ChunkNumber)
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		err = os.RemoveAll(path.Join(fm.storageDir, strconv.Itoa(chunk.FileID)))
 		if err != nil {
-			return err
+			return "", err
 		}
+
+		return newFileName, nil
 	}
 
-	return nil
+	return "", nil
 }
 
 func (fm *FileManager) StoreChunk(chunk *Chunk) error {
@@ -99,4 +115,19 @@ func checkChunks(dir string, maxChunkNumber uint64) error {
 		}
 	}
 	return nil
+}
+
+func checksumMD5(filePath string) (string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := md5.New()
+	if _, err = io.Copy(h, f); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }

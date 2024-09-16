@@ -25,6 +25,9 @@ type StorageRepo interface {
 	UpdateTexts(ctx context.Context, login string, texts []content.TextInfo) error
 	UpdateCreditCards(ctx context.Context, login string, creditCards []content.CreditCardInfo) error
 	UpdateCredentials(ctx context.Context, login string, credentials []content.CredentialInfo) error
+	UpdateFilePath(ctx context.Context, fileID int, newFilePath string) error
+
+	CheckFileHash(ctx context.Context, fileID int, MD5 string) (bool, error)
 
 	GetCreditCards(ctx context.Context, login string, cardIDs []int) ([]content.CreditCardInfo, error)
 	GetCredentials(ctx context.Context, login string, credIDs []int) ([]content.CredentialInfo, error)
