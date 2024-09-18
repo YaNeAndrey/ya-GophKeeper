@@ -338,11 +338,13 @@ func AddCredential(c *Client) bool {
 	if credInfo == nil {
 		return false
 	}
-	err = c.storage.AddNewCredential(credInfo)
-	if err != nil {
-		log.Error(err)
+
+	if credInfo.Login == "" || credInfo.Resource == "" || credInfo.Password == "" {
+		log.Error(fmt.Errorf("AddCredential : %w", clerror.ErrAllRequiredFieldsMustBeFulled))
 		return true
 	}
+
+	c.storage.AddCredential(credInfo)
 	return false
 }
 func AddCreditCard(c *Client) bool {
@@ -355,11 +357,13 @@ func AddCreditCard(c *Client) bool {
 	if creditCardInfo == nil {
 		return false
 	}
-	err = c.storage.AddNewCreditCard(creditCardInfo)
-	if err != nil {
-		log.Error(err)
+
+	if creditCardInfo.CardNumber == "" || creditCardInfo.CVV == "" || creditCardInfo.Bank == "" || creditCardInfo.ValidThru.IsZero() {
+		log.Error(fmt.Errorf("AddCreditCard : %w", clerror.ErrAllRequiredFieldsMustBeFulled))
 		return true
 	}
+
+	c.storage.AddCreditCard(creditCardInfo)
 	return false
 }
 func AddFile(c *Client) bool {
@@ -372,11 +376,11 @@ func AddFile(c *Client) bool {
 	if fileInfo == nil {
 		return false
 	}
-	err = c.storage.AddNewFile(fileInfo)
-	if err != nil {
-		log.Error(err)
+	if fileInfo.FileName == "" || fileInfo.FilePath == "" {
+		log.Error(fmt.Errorf("AddFile : %w", clerror.ErrAllRequiredFieldsMustBeFulled))
 		return true
 	}
+	c.storage.AddFile(fileInfo)
 	return false
 }
 func AddText(c *Client) bool {
@@ -389,11 +393,12 @@ func AddText(c *Client) bool {
 	if textInfo == nil {
 		return false
 	}
-	err = c.storage.AddNewText(textInfo)
-	if err != nil {
-		log.Error(err)
+	if textInfo.Content == "" {
+		log.Error(fmt.Errorf("AddText : %w", clerror.ErrAllRequiredFieldsMustBeFulled))
 		return true
 	}
+
+	c.storage.AddText(textInfo)
 	return false
 }
 

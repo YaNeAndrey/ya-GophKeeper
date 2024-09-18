@@ -9,8 +9,8 @@ import (
 
 type Client struct {
 	config    *config.Config
-	storage   storage.StorageRepo
 	transport transport.Transport
+	storage   storage.StorageRepo
 }
 
 func NewClient(c *config.Config, st storage.StorageRepo, t transport.Transport) *Client {
@@ -28,4 +28,20 @@ func (c *Client) Start() {
 	fmt.Println("Build information: ")
 	fmt.Println(c.config)
 	RunConsoleFunc(c, StartPage)
+	//c.RunConsoleFunc(c.Test)
 }
+
+/*
+func (c *Client) RunConsoleFunc(f func() bool) {
+	for {
+		fmt.Println("*******************************************")
+		if !f() {
+			return
+		}
+	}
+}
+
+func (c *Client) Test() bool {
+	return false
+}
+*/

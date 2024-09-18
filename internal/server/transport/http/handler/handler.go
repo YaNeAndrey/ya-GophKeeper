@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,7 +34,7 @@ func RegistrationPOST(w http.ResponseWriter, r *http.Request, st storage.Storage
 		return
 	}
 
-	ctx := context.Background()
+	ctx := r.Context()
 	err = st.AddNewUser(ctx, user.Login, user.Password)
 	if err != nil {
 		if errors.Is(err, srverror.ErrLoginAlreadyTaken) {
@@ -61,7 +60,7 @@ func LoginWithPasswordPOST(w http.ResponseWriter, r *http.Request, st storage.St
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	ctx := context.Background()
+	ctx := r.Context()
 	ok, err := st.CheckUserPassword(ctx, user.Login, user.Password)
 	if err != nil {
 		if errors.Is(err, srverror.ErrLoginNotFound) {
@@ -96,7 +95,8 @@ func ChangePasswordPOST(w http.ResponseWriter, r *http.Request, st storage.Stora
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	err = st.ChangeUserPassword(context.Background(), claims.Login, string(newPass))
+	ctx := r.Context()
+	err = st.ChangeUserPassword(ctx, claims.Login, string(newPass))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -146,34 +146,35 @@ func RemoveDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	ctx := r.Context()
 	login := claims.Login
 	switch dataType {
 	case urlsuff.DatatypeCredential:
-		err = st.RemoveCredentials(context.Background(), login, rem)
+		err = st.RemoveCredentials(ctx, login, rem)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	case urlsuff.DatatypeCreditCard:
-		err = st.RemoveCreditCards(context.Background(), login, rem)
+		err = st.RemoveCreditCards(ctx, login, rem)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	case urlsuff.DatatypeText:
-		err = st.RemoveTexts(context.Background(), login, rem)
+		err = st.RemoveTexts(ctx, login, rem)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	case urlsuff.DatatypeFile:
-		files, err := st.GetFiles(context.Background(), login, rem)
+		files, err := st.GetFiles(ctx, login, rem)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		RemoveFiles(files)
-		err = st.RemoveFiles(context.Background(), login, rem)
+		err = st.RemoveFiles(ctx, login, rem)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -199,6 +200,7 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 	login := claims.Login
 	if r.Body != http.NoBody {
 
+		ctx := r.Context()
 		var respBody []byte
 		switch dataType {
 		case urlsuff.DatatypeCredential:
@@ -208,7 +210,7 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			creds, err := st.AddNewCredentials(context.Background(), login, newCreds)
+			creds, err := st.AddNewCredentials(ctx, login, newCreds)
 			if err != nil || creds == nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -224,7 +226,7 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			cards, err := st.AddNewCreditCards(context.Background(), login, newCards)
+			cards, err := st.AddNewCreditCards(ctx, login, newCards)
 			if err != nil || cards == nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -236,7 +238,7 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			texts, err := st.AddNewTexts(context.Background(), login, newTexts)
+			texts, err := st.AddNewTexts(ctx, login, newTexts)
 			if err != nil || texts == nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -248,7 +250,7 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			files, err := st.AddNewFiles(context.Background(), login, newFiles)
+			files, err := st.AddNewFiles(ctx, login, newFiles)
 			if err != nil || files == nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -291,10 +293,11 @@ func UploadFilePOST(w http.ResponseWriter, r *http.Request, fm *storage.FileMana
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		hashOK, err := st.CheckFileHash(context.Background(), chunk.FileID, fileHash)
+		ctx := r.Context()
+		hashOK, err := st.CheckFileHash(ctx, chunk.FileID, fileHash)
 		if err == nil {
 			if hashOK {
-				err := st.UpdateFilePath(context.Background(), chunk.FileID, fileName)
+				err := st.UpdateFilePath(ctx, claims.Login, chunk.FileID, fileName)
 				if err != nil {
 					http.Error(w, srverror.ErrIncorrectFileHash.Error(), http.StatusInternalServerError)
 					return
@@ -303,7 +306,7 @@ func UploadFilePOST(w http.ResponseWriter, r *http.Request, fm *storage.FileMana
 				return
 			} else {
 				//TODO: What if db problem?
-				_ = st.RemoveFiles(context.Background(), claims.Login, []int{chunk.FileID})
+				_ = st.RemoveFiles(ctx, claims.Login, []int{chunk.FileID})
 				http.Error(w, srverror.ErrIncorrectFileHash.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -343,8 +346,8 @@ func SyncFirstStep(w http.ResponseWriter, r *http.Request, login string, dataTyp
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	ctx := context.Background()
-	srvInfo, err := st.GetModtimeWithIDs(context.Background(), login, dataType)
+	ctx := r.Context()
+	srvInfo, err := st.GetModtimeWithIDs(ctx, login, dataType)
 	var dataForSrv []int
 	var sendToCli []int
 	for id, info := range srvInfo {
@@ -397,10 +400,12 @@ func SyncFirstStep(w http.ResponseWriter, r *http.Request, login string, dataTyp
 		return
 	}
 }
+
 func SyncSecondStep(w http.ResponseWriter, r *http.Request, login string, dataType string, st storage.StorageRepo) {
 	if r.Header.Get("Content-Type") != "application/json" {
 		http.Error(w, "Incorrect Content-Type. application/json required", http.StatusBadRequest)
 	}
+	ctx := r.Context()
 	switch dataType {
 	case urlsuff.DatatypeCredential:
 		var newCreds []content.CredentialInfo
@@ -409,7 +414,7 @@ func SyncSecondStep(w http.ResponseWriter, r *http.Request, login string, dataTy
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		err = st.UpdateCredentials(context.Background(), login, newCreds)
+		err = st.UpdateCredentials(ctx, login, newCreds)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -420,7 +425,7 @@ func SyncSecondStep(w http.ResponseWriter, r *http.Request, login string, dataTy
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		err = st.UpdateCreditCards(context.Background(), login, newCards)
+		err = st.UpdateCreditCards(ctx, login, newCards)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -431,7 +436,7 @@ func SyncSecondStep(w http.ResponseWriter, r *http.Request, login string, dataTy
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		err = st.UpdateTexts(context.Background(), login, newTexts)
+		err = st.UpdateTexts(ctx, login, newTexts)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
@@ -442,7 +447,7 @@ func SyncSecondStep(w http.ResponseWriter, r *http.Request, login string, dataTy
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		err = st.UpdateFiles(context.Background(), login, newFiles)
+		err = st.UpdateFiles(ctx, login, newFiles)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}

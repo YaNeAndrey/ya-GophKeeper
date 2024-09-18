@@ -8,8 +8,8 @@ import (
 
 type Config struct {
 	SrvAddr      string
-	SrvPort      int
 	TempDir      string
+	ChunkSize    uint64
 	SyncInterval time.Duration
 }
 

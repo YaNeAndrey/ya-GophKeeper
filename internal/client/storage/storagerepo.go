@@ -1,14 +1,15 @@
 package storage
 
 import (
+	"ya-GophKeeper/internal/client/storage/collection"
 	"ya-GophKeeper/internal/content"
 )
 
 type StorageRepo interface {
-	AddNewCreditCard(creditCard *content.CreditCardInfo) error
-	AddNewCredential(credential *content.CredentialInfo) error
-	AddNewFile(file *content.BinaryFileInfo) error
-	AddNewText(text *content.TextInfo) error
+	AddCreditCard(creditCard *content.CreditCardInfo)
+	AddCredential(credential *content.CredentialInfo)
+	AddFile(file *content.BinaryFileInfo)
+	AddText(text *content.TextInfo)
 
 	RemoveCreditCard(index int) error
 	RemoveCredential(index int) error
@@ -20,10 +21,10 @@ type StorageRepo interface {
 	UpdateFiles(index int, file *content.BinaryFileInfo) error
 	UpdateTexts(index int, text *content.TextInfo) error
 
-	GetCreditCardsData() *CreditCards
-	GetCredentialsData() *Credentials
-	GetFilesData() *Files
-	GetTextsData() *Texts
+	GetCreditCardsData() *collection.CreditCards
+	GetCredentialsData() *collection.Credentials
+	GetFilesData() *collection.Files
+	GetTextsData() *collection.Texts
 
 	Clear()
 }
