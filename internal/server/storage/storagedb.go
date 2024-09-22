@@ -83,7 +83,7 @@ func InitStorageDB(connectionString string) *StorageDB {
 	return &resStorage
 }
 
-func (st *StorageDB) AddNewUser(ctx context.Context, login string, password string) error {
+func (st *StorageDB) AddUser(ctx context.Context, login string, password string) error {
 	db, err := TryToOpenDBConnection(st.connectionString)
 	if err != nil {
 		return err
@@ -143,7 +143,7 @@ func (st *StorageDB) ChangeUserPassword(ctx context.Context, login string, passw
 	return nil
 }
 
-func (st *StorageDB) AddNewCreditCards(ctx context.Context, login string, creditCards []content.CreditCardInfo) ([]content.CreditCardInfo, error) {
+func (st *StorageDB) AddCreditCards(ctx context.Context, login string, creditCards []content.CreditCardInfo) ([]content.CreditCardInfo, error) {
 	db, err := TryToOpenDBConnection(st.connectionString)
 	if err != nil {
 		return nil, err
@@ -175,7 +175,7 @@ func (st *StorageDB) AddNewCreditCards(ctx context.Context, login string, credit
 	}
 	return creditCards, nil
 }
-func (st *StorageDB) AddNewCredentials(ctx context.Context, login string, credentials []content.CredentialInfo) ([]content.CredentialInfo, error) {
+func (st *StorageDB) AddCredentials(ctx context.Context, login string, credentials []content.CredentialInfo) ([]content.CredentialInfo, error) {
 	db, err := TryToOpenDBConnection(st.connectionString)
 	if err != nil {
 		return nil, err
@@ -207,7 +207,7 @@ func (st *StorageDB) AddNewCredentials(ctx context.Context, login string, creden
 	}
 	return credentials, nil
 }
-func (st *StorageDB) AddNewFiles(ctx context.Context, login string, files []content.BinaryFileInfo) ([]content.BinaryFileInfo, error) {
+func (st *StorageDB) AddFiles(ctx context.Context, login string, files []content.BinaryFileInfo) ([]content.BinaryFileInfo, error) {
 	db, err := TryToOpenDBConnection(st.connectionString)
 	if err != nil {
 		return nil, err
@@ -239,7 +239,7 @@ func (st *StorageDB) AddNewFiles(ctx context.Context, login string, files []cont
 	}
 	return files, nil
 }
-func (st *StorageDB) AddNewTexts(ctx context.Context, login string, texts []content.TextInfo) ([]content.TextInfo, error) {
+func (st *StorageDB) AddTexts(ctx context.Context, login string, texts []content.TextInfo) ([]content.TextInfo, error) {
 	db, err := TryToOpenDBConnection(st.connectionString)
 	if err != nil {
 		return nil, err
@@ -324,31 +324,53 @@ func (st *StorageDB) RemoveCredentials(ctx context.Context, login string, creden
 	}
 	return nil
 }
-func (st *StorageDB) RemoveFiles(ctx context.Context, login string, fileIDs []int) error {
+func (st *StorageDB) RemoveFiles(ctx context.Context, login string, fileIDs []int) ([]string, error) {
 	db, err := TryToOpenDBConnection(st.connectionString)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer db.Close()
 	var userID int
 	userID, err = getUserID(ctx, login, db)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if userID == 0 {
-		return srverror.ErrLoginNotFound
+		return nil, srverror.ErrLoginNotFound
 	}
+
 	//TODO: Check access
 	_, err = db.ExecContext(ctx, "DELETE FROM users_files where id_file = any($1) and ID_User = $2", pq.Array(fileIDs), userID)
 	if err != nil {
-		log.Println(err)
-		return err
+		//log.Println(err)
+		return nil, err
 	}
-	_, err = db.ExecContext(ctx, "DELETE FROM files where id_file = any($1)", pq.Array(fileIDs))
+
+	rows, err := db.QueryContext(ctx, "DELETE FROM files where id_file = any($1) RETURNING file_path", pq.Array(fileIDs))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+
+	var res []string
+	for rows.Next() {
+		var r string
+		err = rows.Scan(&r)
+		if err != nil {
+			break
+		}
+		res = append(res, r)
+	}
+
+	return res, nil
+	/*
+			_, err = db.ExecContext(ctx, "DELETE FROM files where id_file = any($1) RETURNING file_path", pq.Array(fileIDs))
+			if err != nil {
+				return err
+			}
+
+
+		return nil
+	*/
 }
 func (st *StorageDB) RemoveTexts(ctx context.Context, login string, textIDs []int) error {
 	db, err := TryToOpenDBConnection(st.connectionString)

@@ -2,15 +2,14 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/go-chi/chi/v5"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +17,7 @@ import (
 	"ya-GophKeeper/internal/constants/urlsuff"
 	"ya-GophKeeper/internal/content"
 	"ya-GophKeeper/internal/server/otp"
-	"ya-GophKeeper/internal/server/storage"
+	"ya-GophKeeper/internal/server/storage/filemanager"
 	"ya-GophKeeper/internal/server/transport/http/jwt"
 )
 
@@ -27,15 +26,19 @@ type UserInfo struct {
 	Password string `json:"password"`
 }
 
-func RegistrationPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
-	user, err := ReadAuthDate(r)
+type UserCreator interface {
+	AddUser(ctx context.Context, login string, password string) error
+}
+
+func RegistrationPOST(w http.ResponseWriter, r *http.Request, st UserCreator) {
+	user, err := ReadAuthData(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
-	err = st.AddNewUser(ctx, user.Login, user.Password)
+	err = st.AddUser(ctx, user.Login, user.Password)
 	if err != nil {
 		if errors.Is(err, srverror.ErrLoginAlreadyTaken) {
 			http.Error(w, err.Error(), http.StatusConflict)
@@ -54,8 +57,12 @@ func RegistrationPOST(w http.ResponseWriter, r *http.Request, st storage.Storage
 	w.WriteHeader(http.StatusOK)
 }
 
-func LoginWithPasswordPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
-	user, err := ReadAuthDate(r)
+type UserAuthorizer interface {
+	CheckUserPassword(ctx context.Context, login string, password string) (bool, error)
+}
+
+func LoginWithPasswordPOST(w http.ResponseWriter, r *http.Request, st UserAuthorizer) {
+	user, err := ReadAuthData(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -84,7 +91,11 @@ func LoginWithPasswordPOST(w http.ResponseWriter, r *http.Request, st storage.St
 	}
 }
 
-func ChangePasswordPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
+type UserChanger interface {
+	ChangeUserPassword(ctx context.Context, login string, password string) error
+}
+
+func ChangePasswordPOST(w http.ResponseWriter, r *http.Request, st UserChanger) {
 	claims, ok := jwt.CheckAccess(r)
 	if !ok {
 		http.Error(w, "", http.StatusUnauthorized)
@@ -105,7 +116,7 @@ func ChangePasswordPOST(w http.ResponseWriter, r *http.Request, st storage.Stora
 }
 
 func LoginWithOTP_POST(w http.ResponseWriter, r *http.Request, m *otp.ManagerOTP) {
-	user, err := ReadAuthDate(r)
+	user, err := ReadAuthData(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -128,7 +139,13 @@ func LoginWithOTP_POST(w http.ResponseWriter, r *http.Request, m *otp.ManagerOTP
 	}
 }
 
-func RemoveDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
+type DataRemover interface {
+	RemoveTexts(ctx context.Context, login string, textIDs []int) error
+	RemoveCreditCards(ctx context.Context, login string, creditCardIDs []int) error
+	RemoveCredentials(ctx context.Context, login string, credentialIDs []int) error
+}
+
+func RemoveDataPOST(w http.ResponseWriter, r *http.Request, st DataRemover) {
 	claims, ok := jwt.CheckAccess(r)
 	if !ok {
 		http.Error(w, "", http.StatusUnauthorized)
@@ -167,18 +184,19 @@ func RemoveDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	case urlsuff.DatatypeFile:
-		files, err := st.GetFiles(ctx, login, rem)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		RemoveFiles(files)
-		err = st.RemoveFiles(ctx, login, rem)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	/*case urlsuff.DatatypeFile:
+	files, err := st.GetFiles(ctx, login, rem)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	RemoveFiles(files)
+	err = st.RemoveFiles(ctx, login, rem)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	*/
 	default:
 		http.Error(w, srverror.ErrIncorrectDataTpe.Error(), http.StatusNotFound)
 		return
@@ -186,7 +204,61 @@ func RemoveDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 	w.WriteHeader(http.StatusOK)
 }
 
-func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
+type FileRemover interface {
+	RemoveFiles(ctx context.Context, login string, fileIDs []int) ([]string, error)
+}
+
+func RemoveFilesPOST(w http.ResponseWriter, r *http.Request, st FileRemover, fm *filemanager.FileManager) {
+	claims, ok := jwt.CheckAccess(r)
+	if !ok {
+		http.Error(w, "", http.StatusUnauthorized)
+		return
+	}
+	if r.Header.Get("Content-Type") != "application/json" {
+		http.Error(w, "Incorrect Content-Type. application/json required", http.StatusBadRequest)
+	}
+
+	var rem []int
+	err := json.NewDecoder(r.Body).Decode(&rem)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	login := claims.Login
+	/*
+		files, err := st.GetFiles(ctx, login, rem)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		filesForRemoving := make([]string, len(files))
+		for i, info := range files {
+			filesForRemoving[i] = info.FilePath
+		}
+
+		fm.RemoveFiles(filesForRemoving)
+	*/
+	files, err := st.RemoveFiles(ctx, login, rem)
+	fm.RemoveFiles(files)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+type DataInserter interface {
+	AddFiles(ctx context.Context, login string, files []content.BinaryFileInfo) ([]content.BinaryFileInfo, error)
+	AddTexts(ctx context.Context, login string, texts []content.TextInfo) ([]content.TextInfo, error)
+	AddCreditCards(ctx context.Context, login string, creditCards []content.CreditCardInfo) ([]content.CreditCardInfo, error)
+	AddCredentials(ctx context.Context, login string, credentials []content.CredentialInfo) ([]content.CredentialInfo, error)
+}
+
+func AddDataPOST(w http.ResponseWriter, r *http.Request, st DataInserter) {
 	claims, ok := jwt.CheckAccess(r)
 	if !ok {
 		http.Error(w, "", http.StatusUnauthorized)
@@ -210,7 +282,7 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			creds, err := st.AddNewCredentials(ctx, login, newCreds)
+			creds, err := st.AddCredentials(ctx, login, newCreds)
 			if err != nil || creds == nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -226,7 +298,7 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			cards, err := st.AddNewCreditCards(ctx, login, newCards)
+			cards, err := st.AddCreditCards(ctx, login, newCards)
 			if err != nil || cards == nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -238,7 +310,7 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			texts, err := st.AddNewTexts(ctx, login, newTexts)
+			texts, err := st.AddTexts(ctx, login, newTexts)
 			if err != nil || texts == nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -250,7 +322,7 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			files, err := st.AddNewFiles(ctx, login, newFiles)
+			files, err := st.AddFiles(ctx, login, newFiles)
 			if err != nil || files == nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
@@ -269,56 +341,37 @@ func AddNewDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRe
 	w.WriteHeader(http.StatusOK)
 }
 
-func UploadFilePOST(w http.ResponseWriter, r *http.Request, fm *storage.FileManager, st storage.StorageRepo) {
-	claims, ok := jwt.CheckAccess(r)
-	if !ok {
-		http.Error(w, "", http.StatusUnauthorized)
-		return
-	}
-
-	chunk, err := ParseChunk(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	fileName, err := fm.SaveChunk(chunk)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if fileName != "" {
-		fileHash, err := fm.GetFileHash(fileName)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+/*
+	func SyncDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
+		claims, ok := jwt.CheckAccess(r)
+		if !ok {
+			http.Error(w, "", http.StatusUnauthorized)
 			return
 		}
-		ctx := r.Context()
-		hashOK, err := st.CheckFileHash(ctx, chunk.FileID, fileHash)
-		if err == nil {
-			if hashOK {
-				err := st.UpdateFilePath(ctx, claims.Login, chunk.FileID, fileName)
-				if err != nil {
-					http.Error(w, srverror.ErrIncorrectFileHash.Error(), http.StatusInternalServerError)
-					return
-				}
-				w.WriteHeader(http.StatusOK)
-				return
-			} else {
-				//TODO: What if db problem?
-				_ = st.RemoveFiles(ctx, claims.Login, []int{chunk.FileID})
-				http.Error(w, srverror.ErrIncorrectFileHash.Error(), http.StatusInternalServerError)
-				return
-			}
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+
+		dataType := strings.ToLower(chi.URLParam(r, "Datatype"))
+		syncStep := strings.ToLower(chi.URLParam(r, "StepNumber"))
+
+		_ = dataType
+		switch syncStep {
+		case "1":
+			SyncFirstStep(w, r, claims.Login, dataType, st)
+		case "2":
+			SyncSecondStep(w, r, claims.Login, dataType, st)
+		default:
+			http.Error(w, srverror.ErrIncorrectSyncStep.Error(), http.StatusBadRequest)
 		}
 	}
-	w.WriteHeader(http.StatusOK)
+*/
+type DataProvider interface {
+	GetCreditCards(ctx context.Context, login string, cardIDs []int) ([]content.CreditCardInfo, error)
+	GetCredentials(ctx context.Context, login string, credIDs []int) ([]content.CredentialInfo, error)
+	GetFiles(ctx context.Context, login string, fileIDs []int) ([]content.BinaryFileInfo, error)
+	GetTexts(ctx context.Context, login string, textIDs []int) ([]content.TextInfo, error)
+	GetModtimeWithIDs(ctx context.Context, login string, dataType string) (map[int]time.Time, error)
 }
 
-func SyncDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo) {
+func SyncFirstStep(w http.ResponseWriter, r *http.Request, st DataProvider) {
 	claims, ok := jwt.CheckAccess(r)
 	if !ok {
 		http.Error(w, "", http.StatusUnauthorized)
@@ -326,20 +379,8 @@ func SyncDataPOST(w http.ResponseWriter, r *http.Request, st storage.StorageRepo
 	}
 
 	dataType := strings.ToLower(chi.URLParam(r, "Datatype"))
-	syncStep := strings.ToLower(chi.URLParam(r, "StepNumber"))
+	login := claims.Login
 
-	_ = dataType
-	switch syncStep {
-	case "1":
-		SyncFirstStep(w, r, claims.Login, dataType, st)
-	case "2":
-		SyncSecondStep(w, r, claims.Login, dataType, st)
-	default:
-		http.Error(w, srverror.ErrIncorrectSyncStep.Error(), http.StatusBadRequest)
-	}
-}
-
-func SyncFirstStep(w http.ResponseWriter, r *http.Request, login string, dataType string, st storage.StorageRepo) {
 	var cliInfo map[int]time.Time
 	err := json.NewDecoder(r.Body).Decode(&cliInfo)
 	if err != nil {
@@ -401,7 +442,23 @@ func SyncFirstStep(w http.ResponseWriter, r *http.Request, login string, dataTyp
 	}
 }
 
-func SyncSecondStep(w http.ResponseWriter, r *http.Request, login string, dataType string, st storage.StorageRepo) {
+type DataUpdater interface {
+	UpdateFiles(ctx context.Context, login string, files []content.BinaryFileInfo) error
+	UpdateTexts(ctx context.Context, login string, texts []content.TextInfo) error
+	UpdateCreditCards(ctx context.Context, login string, creditCards []content.CreditCardInfo) error
+	UpdateCredentials(ctx context.Context, login string, credentials []content.CredentialInfo) error
+}
+
+func SyncSecondStep(w http.ResponseWriter, r *http.Request, st DataUpdater) {
+	claims, ok := jwt.CheckAccess(r)
+	if !ok {
+		http.Error(w, "", http.StatusUnauthorized)
+		return
+	}
+
+	dataType := strings.ToLower(chi.URLParam(r, "Datatype"))
+	login := claims.Login
+
 	if r.Header.Get("Content-Type") != "application/json" {
 		http.Error(w, "Incorrect Content-Type. application/json required", http.StatusBadRequest)
 	}
@@ -456,6 +513,62 @@ func SyncSecondStep(w http.ResponseWriter, r *http.Request, login string, dataTy
 	}
 }
 
+type FileWorker interface {
+	CheckFileHash(ctx context.Context, fileID int, MD5 string) (bool, error)
+	UpdateFilePath(ctx context.Context, login string, fileID int, newFilePath string) error
+	RemoveFiles(ctx context.Context, login string, fileIDs []int) ([]string, error)
+}
+
+func UploadFilePOST(w http.ResponseWriter, r *http.Request, fm *filemanager.FileManager, st FileWorker) {
+	claims, ok := jwt.CheckAccess(r)
+	if !ok {
+		http.Error(w, "", http.StatusUnauthorized)
+		return
+	}
+
+	chunk, err := ParseChunk(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	fileName, err := fm.SaveChunk(chunk)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if fileName != "" {
+		fileHash, err := fm.GetFileHash(fileName)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		ctx := r.Context()
+		hashOK, err := st.CheckFileHash(ctx, chunk.FileID, fileHash)
+		if err == nil {
+			if hashOK {
+				err = st.UpdateFilePath(ctx, claims.Login, chunk.FileID, fileName)
+				if err != nil {
+					http.Error(w, srverror.ErrIncorrectFileHash.Error(), http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+				return
+			} else {
+				//TODO: What if db problem?
+				files, _ := st.RemoveFiles(ctx, claims.Login, []int{chunk.FileID})
+				fm.RemoveFiles(files)
+				http.Error(w, srverror.ErrIncorrectFileHash.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func GenerateOTP_GET(w http.ResponseWriter, r *http.Request, m *otp.ManagerOTP) {
 	claims, ok := jwt.CheckAccess(r)
 	if !ok {
@@ -489,7 +602,7 @@ func SetToken(w *http.ResponseWriter, login string) error {
 	return nil
 }
 
-func ReadAuthDate(r *http.Request) (*UserInfo, error) {
+func ReadAuthData(r *http.Request) (*UserInfo, error) {
 	var user UserInfo
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -498,6 +611,7 @@ func ReadAuthDate(r *http.Request) (*UserInfo, error) {
 	return &user, nil
 }
 
+/*
 func RemoveFiles(files []content.BinaryFileInfo) {
 	for _, f := range files {
 		e := os.Remove(f.FilePath)
@@ -506,8 +620,9 @@ func RemoveFiles(files []content.BinaryFileInfo) {
 		}
 	}
 }
+*/
 
-func ParseChunk(r *http.Request) (*storage.Chunk, error) {
+func ParseChunk(r *http.Request) (*filemanager.Chunk, error) {
 	buf := new(bytes.Buffer)
 
 	reader, err := r.MultipartReader()
@@ -538,7 +653,7 @@ func ParseChunk(r *http.Request) (*storage.Chunk, error) {
 		return nil, err
 	}
 
-	return &storage.Chunk{
+	return &filemanager.Chunk{
 		ChunkNumber:   metadata.ChunkNumber,
 		TotalChunks:   metadata.TotalChunks,
 		FileID:        metadata.FileID,

@@ -34,9 +34,9 @@ type UserInfo struct {
 func InitTransport(srvAddr string, chunkSize uint64) *TransportHTTP {
 	return &TransportHTTP{srvAddr: srvAddr, chunkSize: chunkSize}
 }
-func (tr *TransportHTTP) Registration(ctx context.Context, userAutData UserInfo) error {
+func (tr *TransportHTTP) Registration(ctx context.Context, userAuthData UserInfo) error {
 	client := http.Client{}
-	bodyJSON, err := json.Marshal(userAutData)
+	bodyJSON, err := json.Marshal(userAuthData)
 	if err != nil {
 		return err
 	}
@@ -66,9 +66,9 @@ func (tr *TransportHTTP) Registration(ctx context.Context, userAutData UserInfo)
 	return nil
 }
 
-func (tr *TransportHTTP) Login(ctx context.Context, userAutData UserInfo, loginType string) error {
+func (tr *TransportHTTP) Login(ctx context.Context, userAuthData UserInfo, loginType string) error {
 	client := http.Client{}
-	bodyJSON, err := json.Marshal(userAutData)
+	bodyJSON, err := json.Marshal(userAuthData)
 	if err != nil {
 		return err
 	}

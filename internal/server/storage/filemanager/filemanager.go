@@ -1,9 +1,10 @@
-package storage
+package filemanager
 
 import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 	"strconv"
@@ -32,9 +33,14 @@ func (fm *FileManager) GetFileHash(fileName string) (string, error) {
 	return checksumMD5(fullFilePath)
 }
 
-func (fm *FileManager) RemoveFile(fileName string) error {
-	fullFilePath := path.Join(fm.storageDir, fileName)
-	return os.Remove(fullFilePath)
+func (fm *FileManager) RemoveFiles(fileNames []string) {
+	for _, file := range fileNames {
+		fullFilePath := path.Join(fm.storageDir, file)
+		err := os.Remove(fullFilePath)
+		if err != nil {
+			log.Println(err)
+		}
+	}
 }
 
 func (fm *FileManager) SaveChunk(chunk *Chunk) (string, error) {

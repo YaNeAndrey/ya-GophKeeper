@@ -6,6 +6,7 @@ import (
 	"ya-GophKeeper/internal/server/config"
 	"ya-GophKeeper/internal/server/otp"
 	"ya-GophKeeper/internal/server/storage"
+	"ya-GophKeeper/internal/server/storage/filemanager"
 	"ya-GophKeeper/internal/server/transport/http/router"
 )
 
@@ -18,7 +19,7 @@ func main() {
 	st := storage.InitStorageDB(cnfg.DBconnectionString)
 	//st := storage.InitStorageDB("postgresql://postgres:Qwerty123!@localhost:5432/keeper")
 	managerOTP := otp.InitManagerOTP()
-	fm := storage.InitFileManager(cnfg.FileStorageDir)
+	fm := filemanager.InitFileManager(cnfg.FileStorageDir)
 	r := router.InitRouter(st, managerOTP, fm)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", cnfg.ServerPort), r)
 	if err != nil {
