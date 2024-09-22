@@ -9,7 +9,7 @@ import (
 type Config struct {
 	SrvAddr      string
 	TempDir      string
-	ChunkSize    uint64
+	ChunkSize    int64
 	SyncInterval time.Duration
 }
 

@@ -19,8 +19,8 @@ func main() {
 	st := storage.InitStorageDB(cnfg.DBconnectionString)
 	//st := storage.InitStorageDB("postgresql://postgres:Qwerty123!@localhost:5432/keeper")
 	managerOTP := otp.InitManagerOTP()
-	fm := filemanager.InitFileManager(cnfg.FileStorageDir)
-	r := router.InitRouter(st, managerOTP, fm)
+	fm := filemanager.InitFileManager(cnfg.FileStorageDir, cnfg.ChunkSize)
+	r := router.InitRouter(cnfg.FileStorageDir, st, managerOTP, fm)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", cnfg.ServerPort), r)
 	if err != nil {
 		panic(err)

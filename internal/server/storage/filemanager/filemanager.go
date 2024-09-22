@@ -14,6 +14,7 @@ import (
 
 type FileManager struct {
 	storageDir string
+	chunkSize  int64
 }
 
 type Chunk struct {
@@ -24,18 +25,19 @@ type Chunk struct {
 	Data          io.Reader
 }
 
-func InitFileManager(storageDir string) *FileManager {
-	return &FileManager{storageDir: storageDir}
+func InitFileManager(storageDir string, chunkSize int64) *FileManager {
+	return &FileManager{storageDir: storageDir, chunkSize: chunkSize}
 }
 
-func (fm *FileManager) GetFileHash(fileName string) (string, error) {
-	fullFilePath := path.Join(fm.storageDir, fileName)
+func (fm *FileManager) GetFileHash(subdir string, fileName string) (string, error) {
+	fullFilePath := path.Join(fm.storageDir, subdir, fileName)
 	return checksumMD5(fullFilePath)
 }
 
-func (fm *FileManager) RemoveFiles(fileNames []string) {
+func (fm *FileManager) RemoveFiles(subdir string, fileNames []string) {
+	storagePath := path.Join(fm.storageDir, subdir)
 	for _, file := range fileNames {
-		fullFilePath := path.Join(fm.storageDir, file)
+		fullFilePath := path.Join(storagePath, file)
 		err := os.Remove(fullFilePath)
 		if err != nil {
 			log.Println(err)
@@ -43,7 +45,7 @@ func (fm *FileManager) RemoveFiles(fileNames []string) {
 	}
 }
 
-func (fm *FileManager) SaveChunk(chunk *Chunk) (string, error) {
+func (fm *FileManager) SaveChunk(subdir string, chunk *Chunk) (string, error) {
 	if err := os.MkdirAll(path.Join(fm.storageDir, strconv.Itoa(chunk.FileID)), 02750); err != nil {
 		return "", err
 	}
@@ -54,7 +56,7 @@ func (fm *FileManager) SaveChunk(chunk *Chunk) (string, error) {
 
 	if chunk.ChunkNumber == (chunk.TotalChunks - 1) {
 		newFileName := uuid.New().String()
-		err := fm.buildFileFromChunks(newFileName, chunk.ChunkNumber)
+		err := fm.buildFileFromChunks(subdir, newFileName, chunk.FileID, chunk.ChunkNumber)
 		if err != nil {
 			return "", err
 		}
@@ -76,23 +78,28 @@ func (fm *FileManager) StoreChunk(chunk *Chunk) error {
 		return err
 	}
 
-	if _, err = io.CopyN(chunkFile, chunk.Data, 5*1024*1024); err != nil && err != io.EOF {
+	if _, err = io.CopyN(chunkFile, chunk.Data, fm.chunkSize); err != nil && err != io.EOF {
 		return err
 	}
 	return nil
 }
 
-func (fm *FileManager) buildFileFromChunks(fileName string, maxChunkNumber uint64) error {
-	if err := checkChunks(path.Join(fm.storageDir, fileName), maxChunkNumber); err != nil {
+func (fm *FileManager) buildFileFromChunks(subdir string, fileName string, fileID int, maxChunkNumber uint64) error {
+	if err := checkChunks(path.Join(fm.storageDir, strconv.Itoa(fileID)), maxChunkNumber); err != nil {
 		return err
 	}
-	fullFile, err := os.OpenFile(fmt.Sprintf("%s\\%s.file", fm.storageDir, fileName), os.O_CREATE, 0644)
+	storageDir := path.Join(fm.storageDir, subdir)
+	if err := os.MkdirAll(storageDir, 02750); err != nil {
+		return err
+	}
+
+	fullFile, err := os.OpenFile( /*fmt.Sprintf("%s\\%s", storageDir, fileName)*/ path.Join(storageDir, fileName), os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
 
 	for i := uint64(0); i <= maxChunkNumber; i++ {
-		err = appendChunk(path.Join(fm.storageDir, fileName), strconv.FormatUint(i, 10), fullFile)
+		err = appendChunk(path.Join(fm.storageDir, strconv.Itoa(fileID)), strconv.FormatUint(i, 10), fullFile)
 		if err != nil {
 			return err
 		}

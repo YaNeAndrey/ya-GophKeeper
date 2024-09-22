@@ -131,8 +131,8 @@ func UpdatePage(c *Client) bool {
 	fmt.Println("Update page: ")
 	fmt.Println("1) Update credential")
 	fmt.Println("2) Update credit card")
-	fmt.Println("3) Update file")
-	fmt.Println("4) Update text")
+	fmt.Println("3) Update text")
+	fmt.Println("4) Update file")
 	fmt.Println("5) Return to previous page")
 	answer := ReadOneLine()
 	switch answer {
@@ -159,8 +159,8 @@ func AddPage(c *Client) bool {
 	fmt.Println("Add page: ")
 	fmt.Println("1) Add new credential")
 	fmt.Println("2) Add new credit card")
-	fmt.Println("3) Add new file")
-	fmt.Println("4) Add new text")
+	fmt.Println("3) Add new text")
+	fmt.Println("4) Add new file")
 	fmt.Println("5) Return to previous page")
 	answer := ReadOneLine()
 	switch answer {

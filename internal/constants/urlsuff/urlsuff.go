@@ -1,6 +1,9 @@
 package urlsuff
 
 const (
+	SyncFirstStep  = "1"
+	SyncSecondStep = "2"
+
 	OperationRemove        = "remove"
 	OperationInsertNew     = "add"
 	OperationSync          = "sync"
@@ -10,7 +13,7 @@ const (
 	OperationChangPassword = "changepass"
 
 	FileOperationUpload   = "upload"
-	FileOperationDownload = "upload"
+	FileOperationDownload = "download"
 
 	DatatypeCredential = "cred"
 	DatatypeCreditCard = "card"

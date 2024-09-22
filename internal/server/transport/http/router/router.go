@@ -11,14 +11,14 @@ import (
 	"ya-GophKeeper/internal/server/transport/http/handler"
 )
 
-func InitRouter(st storage.StorageRepo, m *otp.ManagerOTP, fm *filemanager.FileManager) http.Handler {
+func InitRouter(fileStoragePath string, st storage.StorageRepo, m *otp.ManagerOTP, fm *filemanager.FileManager) http.Handler {
 	r := chi.NewRouter()
 	r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusNotFound)
 	})
 
 	//fs := filesystem.NoListFileSystem{Base: http.Dir("C:\\Users\\pc\\Documents\\GoYandex\\ya-GophKeeper")}
-	fs := http.FileServer(http.Dir("."))
+	fs := http.FileServer(http.Dir(fileStoragePath))
 	logger := log.New()
 	logger.SetLevel(log.InfoLevel)
 

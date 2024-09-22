@@ -22,7 +22,7 @@ import (
 
 type TransportHTTP struct {
 	srvAddr   string
-	chunkSize uint64
+	chunkSize int64
 	jwtToken  string
 }
 
@@ -31,7 +31,7 @@ type UserInfo struct {
 	Password string `json:"password"`
 }
 
-func InitTransport(srvAddr string, chunkSize uint64) *TransportHTTP {
+func InitTransport(srvAddr string, chunkSize int64) *TransportHTTP {
 	return &TransportHTTP{srvAddr: srvAddr, chunkSize: chunkSize}
 }
 func (tr *TransportHTTP) Registration(ctx context.Context, userAuthData UserInfo) error {
@@ -237,7 +237,7 @@ func (tr *TransportHTTP) UploadFiles(ctx context.Context, files []content.Binary
 	errorCh := make(chan error)
 	for _, file := range files {
 		fileInfo := content.BinaryFileInfo{
-			FileName: file.FileName,
+			ID:       file.ID,
 			FilePath: file.FilePath,
 		}
 		wg.Add(1)
@@ -278,9 +278,9 @@ func (tr *TransportHTTP) UploadFile(ctx context.Context, filepath string, fileID
 
 	fileSize := fileInfo.Size()
 
-	totalPartsNum := uint64(math.Ceil(float64(fileSize) / float64(tr.chunkSize)))
+	totalPartsNum := int64(math.Ceil(float64(fileSize) / float64(tr.chunkSize)))
 
-	for i := uint64(0); i < totalPartsNum; i++ {
+	for i := int64(0); i < totalPartsNum; i++ {
 		partSize := int(math.Min(float64(tr.chunkSize), float64(fileSize-int64(i*tr.chunkSize))))
 		partBuffer := make([]byte, partSize)
 		_, err = file.Read(partBuffer)
@@ -299,7 +299,7 @@ func (tr *TransportHTTP) UploadFile(ctx context.Context, filepath string, fileID
 func (tr *TransportHTTP) SyncChangesFirstStep(ctx context.Context, bodyIDsWithModtime []byte, dataType string) ([]byte, error) {
 	client := http.Client{}
 	bodyReader := bytes.NewReader(bodyIDsWithModtime)
-	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationSync, dataType, "1")
+	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationSync, urlsuff.SyncFirstStep, dataType)
 	var req *http.Request
 	/*	srvAnswer := struct {
 			DataForSrv    []int       `json:",omitempty"`
@@ -355,7 +355,7 @@ func (tr *TransportHTTP) SyncChangesFirstStep(ctx context.Context, bodyIDsWithMo
 
 func (tr *TransportHTTP) SyncChangesSecondStep(ctx context.Context, bodyDataForSrv []byte, dataType string) error {
 	client := http.Client{}
-	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationSync, dataType, "2")
+	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationSync, urlsuff.SyncSecondStep, dataType)
 
 	bodyReader := bytes.NewReader(bodyDataForSrv)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bodyReader)
@@ -428,13 +428,13 @@ func BadResponseHandler(r *http.Response, message string) error {
 	}
 }
 
-func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int, chunkNumber uint64, chunkCount uint64, totalFileSize int64, client *http.Client) error {
+func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int, chunkNumber int64, chunkCount int64, totalFileSize int64, client *http.Client) error {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
 	metadata := struct {
-		ChunkNumber   uint64
-		TotalChunks   uint64
+		ChunkNumber   int64
+		TotalChunks   int64
 		FileID        int
 		TotalFileSize int64
 	}{
@@ -451,6 +451,7 @@ func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int
 	metadataHeader := textproto.MIMEHeader{}
 	metadataHeader.Set("Content-Disposition", "form-data; name=\"metadata\"")
 	metadataHeader.Set("Content-Type", "application/json")
+
 	part, _ := writer.CreatePart(metadataHeader)
 	_, err = part.Write(bodyJSON)
 	if err != nil {
@@ -469,6 +470,10 @@ func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.DatatypeFile, urlsuff.FileOperationUpload)
 
 	req, err := http.NewRequest(http.MethodPost, reqURL, body)
+	req.AddCookie(&http.Cookie{
+		Name:  "token",
+		Value: tr.jwtToken,
+	})
 	if err != nil {
 		return err
 	}

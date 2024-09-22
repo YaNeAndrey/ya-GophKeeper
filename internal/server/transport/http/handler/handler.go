@@ -242,7 +242,7 @@ func RemoveFilesPOST(w http.ResponseWriter, r *http.Request, st FileRemover, fm 
 		fm.RemoveFiles(filesForRemoving)
 	*/
 	files, err := st.RemoveFiles(ctx, login, rem)
-	fm.RemoveFiles(files)
+	fm.RemoveFiles(login, files)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -338,7 +338,7 @@ func AddDataPOST(w http.ResponseWriter, r *http.Request, st DataInserter) {
 			return
 		}
 	}
-	w.WriteHeader(http.StatusOK)
+	//w.WriteHeader(http.StatusOK)
 }
 
 /*
@@ -354,9 +354,9 @@ func AddDataPOST(w http.ResponseWriter, r *http.Request, st DataInserter) {
 
 		_ = dataType
 		switch syncStep {
-		case "1":
+		case urlsuff.SyncFirstStep:
 			SyncFirstStep(w, r, claims.Login, dataType, st)
-		case "2":
+		case urlsuff.SyncSecondStep:
 			SyncSecondStep(w, r, claims.Login, dataType, st)
 		default:
 			http.Error(w, srverror.ErrIncorrectSyncStep.Error(), http.StatusBadRequest)
@@ -429,12 +429,14 @@ func SyncFirstStep(w http.ResponseWriter, r *http.Request, st DataProvider) {
 		answer.DataForCli, err = st.GetFiles(ctx, login, sendToCli)
 	}
 	respBody, err := json.Marshal(answer)
+
 	//log.Println(respBody)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(respBody)))
 	_, err = w.Write(respBody)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -531,14 +533,14 @@ func UploadFilePOST(w http.ResponseWriter, r *http.Request, fm *filemanager.File
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	fileName, err := fm.SaveChunk(chunk)
+	login := claims.Login
+	fileName, err := fm.SaveChunk(login, chunk)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if fileName != "" {
-		fileHash, err := fm.GetFileHash(fileName)
+		fileHash, err := fm.GetFileHash(login, fileName)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -547,17 +549,19 @@ func UploadFilePOST(w http.ResponseWriter, r *http.Request, fm *filemanager.File
 		hashOK, err := st.CheckFileHash(ctx, chunk.FileID, fileHash)
 		if err == nil {
 			if hashOK {
-				err = st.UpdateFilePath(ctx, claims.Login, chunk.FileID, fileName)
+				fileDownloadLinkWithoutDNS := fmt.Sprintf("/%s/%s/%s", urlsuff.FileOperationDownload, login, fileName)
+				err = st.UpdateFilePath(ctx, login, chunk.FileID, fileDownloadLinkWithoutDNS)
 				if err != nil {
 					http.Error(w, srverror.ErrIncorrectFileHash.Error(), http.StatusInternalServerError)
 					return
 				}
-				w.WriteHeader(http.StatusOK)
+				//w.Write([]byte(fmt.Sprintf("/%s/%s/%s", urlsuff.FileOperationDownload, login, fileName)))
+				//w.WriteHeader(http.StatusOK)
 				return
 			} else {
 				//TODO: What if db problem?
-				files, _ := st.RemoveFiles(ctx, claims.Login, []int{chunk.FileID})
-				fm.RemoveFiles(files)
+				files, _ := st.RemoveFiles(ctx, login, []int{chunk.FileID})
+				fm.RemoveFiles(login, files)
 				http.Error(w, srverror.ErrIncorrectFileHash.Error(), http.StatusInternalServerError)
 				return
 			}

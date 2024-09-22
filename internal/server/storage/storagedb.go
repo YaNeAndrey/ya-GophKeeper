@@ -554,7 +554,7 @@ func (st *StorageDB) UpdateFilePath(ctx context.Context, login string, fileID in
 	if !accessOK {
 		return srverror.ErrDBModificationDenied
 	}
-	_, err = db.ExecContext(ctx, "UPDATE Files SET file_path = $2 where ID_File = $1", fileID, newFilePath)
+	_, err = db.ExecContext(ctx, "UPDATE Files SET file_path = $2, modification_time = $3 where ID_File = $1", fileID, newFilePath, time.Now())
 	if err != nil {
 		return err
 	}

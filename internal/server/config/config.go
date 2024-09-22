@@ -10,6 +10,7 @@ type Config struct {
 	DBconnectionString string
 	FileStorageDir     string
 	SecretKey          string
+	ChunkSize          int64
 }
 
 func ParseConfigFromJSON(configPath string) (*Config, error) {
