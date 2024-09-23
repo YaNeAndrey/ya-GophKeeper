@@ -89,7 +89,7 @@ func InitRouter(fileStoragePath string, st storage.StorageRepo, m *otp.ManagerOT
 			})
 		*/
 
-		r.Handle("/download/*", noDirListing(http.StripPrefix("/files/download/", fs)))
+		r.Handle("/download/*", noDirListing(http.StripPrefix("/download/", fs)))
 	})
 	return r
 }

@@ -14,6 +14,6 @@ type Transport interface {
 	SyncNewItems(ctx context.Context, bodyWithNewItems []byte, dataType string) ([]byte, error)
 	SyncChangesFirstStep(ctx context.Context, bodyIDsWithModtime []byte, dataType string) ([]byte, error)
 	SyncChangesSecondStep(ctx context.Context, bodyDataForSrv []byte, dataType string) error
-	UploadFiles(ctx context.Context, files []content.BinaryFileInfo) error
+	UploadFiles(ctx context.Context, files []content.BinaryFileInfo) ([]content.BinaryFileInfo, error)
 	GetOTP(ctx context.Context) (int, error)
 }

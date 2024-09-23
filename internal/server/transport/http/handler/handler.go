@@ -555,7 +555,7 @@ func UploadFilePOST(w http.ResponseWriter, r *http.Request, fm *filemanager.File
 					http.Error(w, srverror.ErrIncorrectFileHash.Error(), http.StatusInternalServerError)
 					return
 				}
-				//w.Write([]byte(fmt.Sprintf("/%s/%s/%s", urlsuff.FileOperationDownload, login, fileName)))
+				w.Write([]byte(fileDownloadLinkWithoutDNS))
 				//w.WriteHeader(http.StatusOK)
 				return
 			} else {

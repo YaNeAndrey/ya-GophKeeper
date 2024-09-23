@@ -283,12 +283,14 @@ func SyncFiles(c *Client) error {
 		if err != nil {
 			return err
 		}
-		files.RemoveItemsWithoutID()
-		err = files.AddOrUpdateItems(updatedFilesInfo)
+		//files.RemoveItemsWithoutID()
+		//err = files.AddOrUpdateItems(updatedFilesInfo)
 		if err != nil {
 			log.Println(err)
 		}
-		err = c.transport.UploadFiles(ctx, updatedFilesInfo)
+		updatedFilesInfo, err = c.transport.UploadFiles(ctx, updatedFilesInfo)
+		files.RemoveItemsWithoutID()
+		err = files.AddOrUpdateItems(updatedFilesInfo)
 		if err != nil {
 			log.Println(err)
 			return nil
@@ -333,7 +335,8 @@ func SyncFiles(c *Client) error {
 		if err != nil {
 			return err
 		}
-		err = c.transport.UploadFiles(ctx, itemsForServer)
+		//TODO: change local storage
+		_, err = c.transport.UploadFiles(ctx, itemsForServer)
 		if err != nil {
 			log.Println(err)
 			return nil

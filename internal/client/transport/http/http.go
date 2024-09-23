@@ -230,25 +230,13 @@ func (tr *TransportHTTP) SyncNewItems(ctx context.Context, bodyWithNewItems []by
 
 }
 
-func (tr *TransportHTTP) UploadFiles(ctx context.Context, files []content.BinaryFileInfo) error {
+func (tr *TransportHTTP) UploadFiles(ctx context.Context, files []content.BinaryFileInfo) ([]content.BinaryFileInfo, error) {
 	client := http.Client{}
 	var returnErr error
 	var wg sync.WaitGroup
 	errorCh := make(chan error)
-	for _, file := range files {
-		fileInfo := content.BinaryFileInfo{
-			ID:       file.ID,
-			FilePath: file.FilePath,
-		}
-		wg.Add(1)
-		func() {
-			defer wg.Done()
-			err := tr.UploadFile(ctx, fileInfo.FilePath, fileInfo.ID, &client)
-			if err != nil {
-				errorCh <- fmt.Errorf("%s\r\n%s\r\n", fileInfo.FileName, err.Error())
-			}
-		}()
-	}
+	filesCopy := make([]content.BinaryFileInfo, len(files))
+	copy(filesCopy, files)
 
 	go func() {
 		for {
@@ -261,15 +249,29 @@ func (tr *TransportHTTP) UploadFiles(ctx context.Context, files []content.Binary
 		}
 	}()
 
+	for i, fileInfo := range filesCopy {
+		//fileInfo := filesCopy[i]
+		wg.Add(1)
+		func() {
+			defer wg.Done()
+			downloadFilePath, err := tr.UploadFile(ctx, fileInfo.FilePath, fileInfo.ID, &client)
+			if err != nil {
+				errorCh <- fmt.Errorf("%s\r\n%s\r\n", fileInfo.FileName, err.Error())
+				return
+			}
+			filesCopy[i].FilePath = downloadFilePath
+		}()
+	}
+
 	wg.Wait()
 	close(errorCh)
-	return returnErr
+	return filesCopy, returnErr
 }
 
-func (tr *TransportHTTP) UploadFile(ctx context.Context, filepath string, fileID int, client *http.Client) error {
+func (tr *TransportHTTP) UploadFile(ctx context.Context, filepath string, fileID int, client *http.Client) (string, error) {
 	file, err := os.Open(filepath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	defer file.Close()
@@ -285,15 +287,18 @@ func (tr *TransportHTTP) UploadFile(ctx context.Context, filepath string, fileID
 		partBuffer := make([]byte, partSize)
 		_, err = file.Read(partBuffer)
 		if err != nil {
-			return err
+			return "", err
 		}
 
-		err = tr.SendChunk(ctx, partBuffer, fileID, i, totalPartsNum, fileSize, client)
+		resBody, err := tr.SendChunk(ctx, partBuffer, fileID, i, totalPartsNum, fileSize, client)
 		if err != nil {
-			return err
+			return "", err
+		}
+		if i == totalPartsNum-1 && resBody != nil {
+			return string(resBody), err
 		}
 	}
-	return nil
+	return "", nil
 }
 
 func (tr *TransportHTTP) SyncChangesFirstStep(ctx context.Context, bodyIDsWithModtime []byte, dataType string) ([]byte, error) {
@@ -428,7 +433,7 @@ func BadResponseHandler(r *http.Response, message string) error {
 	}
 }
 
-func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int, chunkNumber int64, chunkCount int64, totalFileSize int64, client *http.Client) error {
+func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int, chunkNumber int64, chunkCount int64, totalFileSize int64, client *http.Client) ([]byte, error) {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
@@ -445,7 +450,7 @@ func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int
 	}
 	bodyJSON, err := json.Marshal(metadata)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	metadataHeader := textproto.MIMEHeader{}
@@ -455,7 +460,7 @@ func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int
 	part, _ := writer.CreatePart(metadataHeader)
 	_, err = part.Write(bodyJSON)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	mediaHeader := textproto.MIMEHeader{}
@@ -464,7 +469,7 @@ func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int
 
 	_, err = io.Copy(mediaPart, bytes.NewReader(chunk))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	writer.Close()
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.DatatypeFile, urlsuff.FileOperationUpload)
@@ -475,7 +480,7 @@ func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int
 		Value: tr.jwtToken,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req.Header.Add("Content-Type", writer.FormDataContentType())
@@ -489,9 +494,20 @@ func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int
 
 	res, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer res.Body.Close()
 
-	return nil
+	if res.StatusCode != http.StatusOK {
+		//BadResponseHandler(res, "")
+		return nil, BadResponseHandler(res, "")
+	}
+	if res.ContentLength != 0 {
+		bodyBytes, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+		return bodyBytes, nil
+	}
+	return nil, nil
 }

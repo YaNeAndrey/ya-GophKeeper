@@ -143,11 +143,11 @@ func UpdatePage(c *Client) bool {
 		PrintCreditCards(c)
 		RunConsoleFunc(c, UpdateCreditCards)
 	case "3":
-		PrintFiles(c)
-		RunConsoleFunc(c, UpdateFiles)
-	case "4":
 		PrintTexts(c)
 		RunConsoleFunc(c, UpdateText)
+	case "4":
+		PrintFiles(c)
+		RunConsoleFunc(c, UpdateFiles)
 	case "5":
 		return false
 	default:
@@ -169,9 +169,9 @@ func AddPage(c *Client) bool {
 	case "2":
 		RunConsoleFunc(c, AddCreditCard)
 	case "3":
-		RunConsoleFunc(c, AddFile)
-	case "4":
 		RunConsoleFunc(c, AddText)
+	case "4":
+		RunConsoleFunc(c, AddFile)
 	case "5":
 		return false
 	default:
@@ -238,8 +238,8 @@ func PrintPage(c *Client) bool {
 	fmt.Println("Print page: ")
 	fmt.Println("1) Print credential")
 	fmt.Println("2) Print credit card")
-	fmt.Println("3) Print file")
-	fmt.Println("4) Print text")
+	fmt.Println("3) Print text")
+	fmt.Println("4) Print file")
 	fmt.Println("5) Return to previous page")
 	answer := ReadOneLine()
 	switch answer {
@@ -248,9 +248,9 @@ func PrintPage(c *Client) bool {
 	case "2":
 		PrintCreditCards(c)
 	case "3":
-		PrintFiles(c)
-	case "4":
 		PrintTexts(c)
+	case "4":
+		PrintFiles(c)
 	case "5":
 		return false
 	default:
@@ -277,7 +277,7 @@ func UpdateCredential(c *Client) bool {
 	return false
 }
 func UpdateCreditCards(c *Client) bool {
-	fmt.Println("Update credential: ")
+	fmt.Println("Update credit card: ")
 	index, creditCardInfo, err := ReadCreditCard()
 	if err != nil {
 		log.Error(err)
@@ -294,7 +294,7 @@ func UpdateCreditCards(c *Client) bool {
 	return false
 }
 func UpdateFiles(c *Client) bool {
-	fmt.Println("Update credential: ")
+	fmt.Println("Update files: ")
 	index, fileInfo, err := ReadBinaryFile()
 	if err != nil {
 		log.Error(err)
@@ -311,7 +311,7 @@ func UpdateFiles(c *Client) bool {
 	return false
 }
 func UpdateText(c *Client) bool {
-	fmt.Println("Update credential: ")
+	fmt.Println("Update text: ")
 	index, textInfo, err := ReadText()
 	if err != nil {
 		log.Error(err)

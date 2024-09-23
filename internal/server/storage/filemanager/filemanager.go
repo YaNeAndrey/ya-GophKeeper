@@ -78,6 +78,7 @@ func (fm *FileManager) StoreChunk(chunk *Chunk) error {
 		return err
 	}
 
+	defer chunkFile.Close()
 	if _, err = io.CopyN(chunkFile, chunk.Data, fm.chunkSize); err != nil && err != io.EOF {
 		return err
 	}
@@ -97,6 +98,8 @@ func (fm *FileManager) buildFileFromChunks(subdir string, fileName string, fileI
 	if err != nil {
 		return err
 	}
+
+	defer fullFile.Close()
 
 	for i := uint64(0); i <= maxChunkNumber; i++ {
 		err = appendChunk(path.Join(fm.storageDir, strconv.Itoa(fileID)), strconv.FormatUint(i, 10), fullFile)
