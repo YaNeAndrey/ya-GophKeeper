@@ -295,14 +295,17 @@ func UpdateCreditCards(c *Client) bool {
 }
 func UpdateFiles(c *Client) bool {
 	fmt.Println("Update files: ")
+	fmt.Println("You can change only description or base file name!")
 	index, fileInfo, err := ReadBinaryFile()
 	if err != nil {
 		log.Error(err)
 		return true
 	}
+
 	if fileInfo == nil {
 		return false
 	}
+	fileInfo.FilePath = ""
 	err = c.storage.UpdateFiles(index, fileInfo)
 	if err != nil {
 		log.Error(err)
@@ -376,10 +379,19 @@ func AddFile(c *Client) bool {
 	if fileInfo == nil {
 		return false
 	}
+
 	if fileInfo.FileName == "" || fileInfo.FilePath == "" {
 		log.Error(fmt.Errorf("AddFile : %w", clerror.ErrAllRequiredFieldsMustBeFulled))
 		return true
 	}
+
+	MD5, err := checksumMD5(fileInfo.FilePath)
+	if err != nil {
+		log.Error(err)
+		return true
+	}
+	fileInfo.MD5 = MD5
+
 	c.storage.AddFile(fileInfo)
 	return false
 }
@@ -507,17 +519,18 @@ func ReadBinaryFile() (int, *content.BinaryFileInfo, error) {
 
 	fmt.Println("File path for reading. Max file size: 4GB. : ")
 	filePath := ReadOneLine()
-
-	MD5, err := checksumMD5(filePath)
-	if err != nil {
-		return 0, nil, err
-	}
+	/*
+		MD5, err := checksumMD5(filePath)
+		if err != nil {
+			return 0, nil, err
+		}
+	*/
 	return index, &content.BinaryFileInfo{
 		FileName:         fileName,
 		FilePath:         filePath,
 		Description:      description,
 		ModificationTime: time.Now(),
-		MD5:              MD5,
+		MD5:              "",
 	}, nil
 }
 func ReadText() (int, *content.TextInfo, error) {

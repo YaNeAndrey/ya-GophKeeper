@@ -1,12 +1,9 @@
 package memory
 
 import (
-	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"io"
-	"math"
 	"os"
-	"path"
 	"ya-GophKeeper/internal/client/storage/collection"
 	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/content"
@@ -18,6 +15,8 @@ type BaseStorage struct {
 	texts       collection.Texts
 	files       collection.Files
 }
+
+//TODO: Remove logic operation with data (check files, check length and ...)
 
 func NewBaseStorage(tempDir string) *BaseStorage {
 	return &BaseStorage{
@@ -165,18 +164,20 @@ func (st *BaseStorage) UpdateFiles(index int, file *content.BinaryFileInfo) erro
 	if index > len(st.files.Stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
-	tempFilePath := path.Join(st.files.TempDir, uuid.New().String())
-	size, err := fileSize(file.FilePath)
-	if err != nil {
-		return err
-	}
-	if size > math.MaxUint32 {
-		return clerror.ErrMaxFileSizeExceeded
-	}
-	err = copyFileContents(file.FilePath, tempFilePath)
-	if err != nil {
-		return clerror.ErrCopyFileProblem
-	}
+	/*
+			tempFilePath := path.Join(st.files.TempDir, uuid.New().String())
+			size, err := fileSize(file.FilePath)
+			if err != nil {
+				return err
+			}
+			if size > math.MaxUint32 {
+				return clerror.ErrMaxFileSizeExceeded
+			}
+			err = copyFileContents(file.FilePath, tempFilePath)
+		if err != nil {
+			return clerror.ErrCopyFileProblem
+		}
+	*/
 	if file.FileName != "" {
 		st.files.Stored[index].FileName = file.FileName
 	}
