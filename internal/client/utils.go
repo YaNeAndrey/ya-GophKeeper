@@ -20,6 +20,7 @@ import (
 
 func StartPage(c *Client) bool {
 	c.storage.Clear()
+	c.transport.Clear()
 	fmt.Println("1) Sign in")
 	fmt.Println("2) Sign up")
 	fmt.Println("3) Exit")
@@ -305,7 +306,6 @@ func UpdateFiles(c *Client) bool {
 	if fileInfo == nil {
 		return false
 	}
-	fileInfo.FilePath = ""
 	err = c.storage.UpdateFiles(index, fileInfo)
 	if err != nil {
 		log.Error(err)

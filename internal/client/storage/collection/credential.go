@@ -7,6 +7,7 @@ import (
 )
 
 type Credentials struct {
+	New     []content.CredentialInfo
 	Stored  []content.CredentialInfo
 	Removed []int
 	mutex   sync.Mutex

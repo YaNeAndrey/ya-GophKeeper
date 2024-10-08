@@ -64,7 +64,6 @@ func InitRouter(fileStoragePath string, st storage.StorageRepo, m *otp.ManagerOT
 		r.Route("/sync", func(r chi.Router) {
 			r.Post("/1/{Datatype}", func(rw http.ResponseWriter, req *http.Request) {
 				handler.SyncFirstStep(rw, req, st)
-				handler.RemoveFilesPOST(rw, req, st, fm)
 			})
 			r.Post("/2/{Datatype}", func(rw http.ResponseWriter, req *http.Request) {
 				handler.SyncSecondStep(rw, req, st)

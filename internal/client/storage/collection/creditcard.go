@@ -7,6 +7,7 @@ import (
 )
 
 type CreditCards struct {
+	New     []content.CreditCardInfo
 	Stored  []content.CreditCardInfo
 	Removed []int
 	mutex   sync.Mutex

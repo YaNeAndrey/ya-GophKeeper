@@ -54,7 +54,7 @@ func RegistrationPOST(w http.ResponseWriter, r *http.Request, st UserCreator) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	//w.WriteHeader(http.StatusOK)
 }
 
 type UserAuthorizer interface {
@@ -85,7 +85,7 @@ func LoginWithPasswordPOST(w http.ResponseWriter, r *http.Request, st UserAuthor
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
+		//w.WriteHeader(http.StatusOK)
 	} else {
 		w.WriteHeader(http.StatusUnauthorized)
 	}
@@ -112,7 +112,7 @@ func ChangePasswordPOST(w http.ResponseWriter, r *http.Request, st UserChanger) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	//w.WriteHeader(http.StatusOK)
 }
 
 func LoginWithOTP_POST(w http.ResponseWriter, r *http.Request, m *otp.ManagerOTP) {
@@ -133,7 +133,7 @@ func LoginWithOTP_POST(w http.ResponseWriter, r *http.Request, m *otp.ManagerOTP
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
+		//w.WriteHeader(http.StatusOK)
 	} else {
 		w.WriteHeader(http.StatusUnauthorized)
 	}
@@ -201,7 +201,7 @@ func RemoveDataPOST(w http.ResponseWriter, r *http.Request, st DataRemover) {
 		http.Error(w, srverror.ErrIncorrectDataTpe.Error(), http.StatusNotFound)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	//	w.WriteHeader(http.StatusOK)
 }
 
 type FileRemover interface {
@@ -212,7 +212,6 @@ func RemoveFilesPOST(w http.ResponseWriter, r *http.Request, st FileRemover, fm 
 	claims, ok := jwt.CheckAccess(r)
 	if !ok {
 		http.Error(w, "", http.StatusUnauthorized)
-		return
 	}
 	if r.Header.Get("Content-Type") != "application/json" {
 		http.Error(w, "Incorrect Content-Type. application/json required", http.StatusBadRequest)
@@ -222,7 +221,6 @@ func RemoveFilesPOST(w http.ResponseWriter, r *http.Request, st FileRemover, fm 
 	err := json.NewDecoder(r.Body).Decode(&rem)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
 	}
 
 	ctx := r.Context()
@@ -242,13 +240,14 @@ func RemoveFilesPOST(w http.ResponseWriter, r *http.Request, st FileRemover, fm 
 		fm.RemoveFiles(filesForRemoving)
 	*/
 	files, err := st.RemoveFiles(ctx, login, rem)
+	//TODO: Send only suffix (short file name)
 	fm.RemoveFiles(login, files)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	//	w.WriteHeader(http.StatusOK)
 }
 
 type DataInserter interface {
@@ -570,7 +569,7 @@ func UploadFilePOST(w http.ResponseWriter, r *http.Request, fm *filemanager.File
 			return
 		}
 	}
-	w.WriteHeader(http.StatusOK)
+	//w.WriteHeader(http.StatusOK)
 }
 
 func GenerateOTP_GET(w http.ResponseWriter, r *http.Request, m *otp.ManagerOTP) {

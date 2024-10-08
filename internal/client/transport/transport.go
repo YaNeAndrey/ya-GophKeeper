@@ -16,4 +16,5 @@ type Transport interface {
 	SyncChangesSecondStep(ctx context.Context, bodyDataForSrv []byte, dataType string) error
 	UploadFiles(ctx context.Context, files []content.BinaryFileInfo) ([]content.BinaryFileInfo, error)
 	GetOTP(ctx context.Context) (int, error)
+	Clear()
 }

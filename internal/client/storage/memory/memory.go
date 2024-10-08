@@ -2,7 +2,6 @@ package memory
 
 import (
 	log "github.com/sirupsen/logrus"
-	"io"
 	"os"
 	"ya-GophKeeper/internal/client/storage/collection"
 	"ya-GophKeeper/internal/constants/clerror"
@@ -16,12 +15,8 @@ type BaseStorage struct {
 	files       collection.Files
 }
 
-//TODO: Remove logic operation with data (check files, check length and ...)
-
-func NewBaseStorage(tempDir string) *BaseStorage {
-	return &BaseStorage{
-		files: collection.Files{TempDir: tempDir},
-	}
+func NewBaseStorage() *BaseStorage {
+	return &BaseStorage{}
 }
 
 func (st *BaseStorage) AddCreditCard(creditCard *content.CreditCardInfo) {
@@ -65,7 +60,7 @@ func (st *BaseStorage) RemoveCreditCard(index int) error {
 	if st.creditCards.Stored == nil {
 		return clerror.ErrOutOfRange
 	}
-	if index > len(st.creditCards.Stored) || index < 0 {
+	if index >= len(st.creditCards.Stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
 	cardID := st.creditCards.Stored[index].ID
@@ -79,7 +74,7 @@ func (st *BaseStorage) RemoveCredential(index int) error {
 	if st.credentials.Stored == nil {
 		return clerror.ErrOutOfRange
 	}
-	if index > len(st.credentials.Stored) || index < 0 {
+	if index >= len(st.credentials.Stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
 
@@ -94,7 +89,7 @@ func (st *BaseStorage) RemoveText(index int) error {
 	if st.texts.Stored == nil {
 		return clerror.ErrOutOfRange
 	}
-	if index > len(st.texts.Stored) || index < 0 {
+	if index >= len(st.texts.Stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
 
@@ -109,7 +104,7 @@ func (st *BaseStorage) RemoveFile(index int) error {
 	if st.files.Stored == nil {
 		return clerror.ErrOutOfRange
 	}
-	if index > len(st.files.Stored) || index < 0 {
+	if index >= len(st.files.Stored) || index < 0 {
 		return clerror.ErrOutOfRange
 	}
 
@@ -221,6 +216,7 @@ func (st *BaseStorage) Clear() {
 	st.creditCards.Clear()
 }
 
+/*
 func fileSize(filename string) (int64, error) {
 	fi, err := os.Stat(filename)
 	if err != nil {
@@ -254,3 +250,4 @@ func copyFileContents(src, dst string) error {
 	err = out.Sync()
 	return err
 }
+*/

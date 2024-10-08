@@ -42,7 +42,8 @@ func (tr *TransportHTTP) Registration(ctx context.Context, userAuthData UserInfo
 	}
 	bodyReader := bytes.NewReader(bodyJSON)
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationRegistration)
-	req, _ := http.NewRequest(http.MethodPost, reqURL, bodyReader)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bodyReader)
+	//req, _ := http.NewRequest(http.MethodPost, reqURL, bodyReader)
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -74,7 +75,9 @@ func (tr *TransportHTTP) Login(ctx context.Context, userAuthData UserInfo, login
 	}
 	bodyReader := bytes.NewReader(bodyJSON)
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationLogin, loginType)
-	req, _ := http.NewRequest(http.MethodPost, reqURL, bodyReader)
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bodyReader)
+	//req, _ := http.NewRequest(http.MethodPost, reqURL, bodyReader)
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -103,7 +106,7 @@ func (tr *TransportHTTP) ChangePassword(ctx context.Context, newPasswd string) e
 	client := http.Client{}
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationChangPassword)
 	strings.NewReader(newPasswd)
-	req, _ := http.NewRequest(http.MethodPost, reqURL, strings.NewReader(newPasswd))
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, strings.NewReader(newPasswd))
 	req.AddCookie(&http.Cookie{
 		Name:  "token",
 		Value: tr.jwtToken,
@@ -121,7 +124,7 @@ func (tr *TransportHTTP) ChangePassword(ctx context.Context, newPasswd string) e
 func (tr *TransportHTTP) GetOTP(ctx context.Context) (int, error) {
 	client := http.Client{}
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.OperationGenerateOTP)
-	req, _ := http.NewRequest(http.MethodGet, reqURL, nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "token",
 		Value: tr.jwtToken,
@@ -474,7 +477,7 @@ func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int
 	writer.Close()
 	reqURL, _ := url.JoinPath(tr.srvAddr, urlsuff.DatatypeFile, urlsuff.FileOperationUpload)
 
-	req, err := http.NewRequest(http.MethodPost, reqURL, body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, body)
 	req.AddCookie(&http.Cookie{
 		Name:  "token",
 		Value: tr.jwtToken,
@@ -510,4 +513,8 @@ func (tr *TransportHTTP) SendChunk(ctx context.Context, chunk []byte, fileID int
 		return bodyBytes, nil
 	}
 	return nil, nil
+}
+
+func (tr *TransportHTTP) Clear() {
+	tr.jwtToken = ""
 }

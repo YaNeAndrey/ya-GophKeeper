@@ -7,7 +7,7 @@ import (
 )
 
 type Files struct {
-	TempDir string
+	New     []content.BinaryFileInfo
 	Stored  []content.BinaryFileInfo
 	Removed []int
 	mutex   sync.Mutex
