@@ -24,7 +24,7 @@ type BinaryFileInfo struct {
 	FilePath         string    `json:"file_path"`
 	Description      string    `json:"description"`
 	FileSize         int       `json:"file_size"`
-	MD5              uint      `json:"md5"`
+	MD5              string    `json:"md5"`
 	ModificationTime time.Time `json:"mod_time"`
 }
 

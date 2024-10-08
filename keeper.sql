@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS Files (
     file_name varchar(256) NOT NULL,
     file_path varchar(256) NOT NULL,
     file_size int NOT NULL,
-    md5 uuid NOT NULL,
+    md5 TEXT NOT NULL,
     modification_time timestamp
 );
 

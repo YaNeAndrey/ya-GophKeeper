@@ -3,15 +3,15 @@ package client
 import (
 	"bufio"
 	"context"
+	"crypto/md5"
 	"errors"
 	"fmt"
-	"github.com/gosuri/uilive"
 	log "github.com/sirupsen/logrus"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-	"ya-GophKeeper/internal/client/storage"
 	"ya-GophKeeper/internal/client/transport/http"
 	"ya-GophKeeper/internal/constants/clerror"
 	"ya-GophKeeper/internal/constants/urlsuff"
@@ -20,6 +20,7 @@ import (
 
 func StartPage(c *Client) bool {
 	c.storage.Clear()
+	c.transport.Clear()
 	fmt.Println("1) Sign in")
 	fmt.Println("2) Sign up")
 	fmt.Println("3) Exit")
@@ -131,8 +132,8 @@ func UpdatePage(c *Client) bool {
 	fmt.Println("Update page: ")
 	fmt.Println("1) Update credential")
 	fmt.Println("2) Update credit card")
-	fmt.Println("3) Update file")
-	fmt.Println("4) Update text")
+	fmt.Println("3) Update text")
+	fmt.Println("4) Update file")
 	fmt.Println("5) Return to previous page")
 	answer := ReadOneLine()
 	switch answer {
@@ -143,11 +144,11 @@ func UpdatePage(c *Client) bool {
 		PrintCreditCards(c)
 		RunConsoleFunc(c, UpdateCreditCards)
 	case "3":
-		PrintFiles(c)
-		RunConsoleFunc(c, UpdateFiles)
-	case "4":
 		PrintTexts(c)
 		RunConsoleFunc(c, UpdateText)
+	case "4":
+		PrintFiles(c)
+		RunConsoleFunc(c, UpdateFiles)
 	case "5":
 		return false
 	default:
@@ -159,8 +160,8 @@ func AddPage(c *Client) bool {
 	fmt.Println("Add page: ")
 	fmt.Println("1) Add new credential")
 	fmt.Println("2) Add new credit card")
-	fmt.Println("3) Add new file")
-	fmt.Println("4) Add new text")
+	fmt.Println("3) Add new text")
+	fmt.Println("4) Add new file")
 	fmt.Println("5) Return to previous page")
 	answer := ReadOneLine()
 	switch answer {
@@ -169,9 +170,9 @@ func AddPage(c *Client) bool {
 	case "2":
 		RunConsoleFunc(c, AddCreditCard)
 	case "3":
-		RunConsoleFunc(c, AddFile)
-	case "4":
 		RunConsoleFunc(c, AddText)
+	case "4":
+		RunConsoleFunc(c, AddFile)
 	case "5":
 		return false
 	default:
@@ -238,8 +239,8 @@ func PrintPage(c *Client) bool {
 	fmt.Println("Print page: ")
 	fmt.Println("1) Print credential")
 	fmt.Println("2) Print credit card")
-	fmt.Println("3) Print file")
-	fmt.Println("4) Print text")
+	fmt.Println("3) Print text")
+	fmt.Println("4) Print file")
 	fmt.Println("5) Return to previous page")
 	answer := ReadOneLine()
 	switch answer {
@@ -248,9 +249,9 @@ func PrintPage(c *Client) bool {
 	case "2":
 		PrintCreditCards(c)
 	case "3":
-		PrintFiles(c)
-	case "4":
 		PrintTexts(c)
+	case "4":
+		PrintFiles(c)
 	case "5":
 		return false
 	default:
@@ -277,7 +278,7 @@ func UpdateCredential(c *Client) bool {
 	return false
 }
 func UpdateCreditCards(c *Client) bool {
-	fmt.Println("Update credential: ")
+	fmt.Println("Update credit card: ")
 	index, creditCardInfo, err := ReadCreditCard()
 	if err != nil {
 		log.Error(err)
@@ -294,12 +295,14 @@ func UpdateCreditCards(c *Client) bool {
 	return false
 }
 func UpdateFiles(c *Client) bool {
-	fmt.Println("Update credential: ")
+	fmt.Println("Update files: ")
+	fmt.Println("You can change only description or base file name!")
 	index, fileInfo, err := ReadBinaryFile()
 	if err != nil {
 		log.Error(err)
 		return true
 	}
+
 	if fileInfo == nil {
 		return false
 	}
@@ -311,7 +314,7 @@ func UpdateFiles(c *Client) bool {
 	return false
 }
 func UpdateText(c *Client) bool {
-	fmt.Println("Update credential: ")
+	fmt.Println("Update text: ")
 	index, textInfo, err := ReadText()
 	if err != nil {
 		log.Error(err)
@@ -338,11 +341,13 @@ func AddCredential(c *Client) bool {
 	if credInfo == nil {
 		return false
 	}
-	err = c.storage.AddNewCredential(credInfo)
-	if err != nil {
-		log.Error(err)
+
+	if credInfo.Login == "" || credInfo.Resource == "" || credInfo.Password == "" {
+		log.Error(fmt.Errorf("AddCredential : %w", clerror.ErrAllRequiredFieldsMustBeFulled))
 		return true
 	}
+
+	c.storage.AddCredential(credInfo)
 	return false
 }
 func AddCreditCard(c *Client) bool {
@@ -355,11 +360,13 @@ func AddCreditCard(c *Client) bool {
 	if creditCardInfo == nil {
 		return false
 	}
-	err = c.storage.AddNewCreditCard(creditCardInfo)
-	if err != nil {
-		log.Error(err)
+
+	if creditCardInfo.CardNumber == "" || creditCardInfo.CVV == "" || creditCardInfo.Bank == "" || creditCardInfo.ValidThru.IsZero() {
+		log.Error(fmt.Errorf("AddCreditCard : %w", clerror.ErrAllRequiredFieldsMustBeFulled))
 		return true
 	}
+
+	c.storage.AddCreditCard(creditCardInfo)
 	return false
 }
 func AddFile(c *Client) bool {
@@ -372,11 +379,20 @@ func AddFile(c *Client) bool {
 	if fileInfo == nil {
 		return false
 	}
-	err = c.storage.AddNewFile(fileInfo)
+
+	if fileInfo.FileName == "" || fileInfo.FilePath == "" {
+		log.Error(fmt.Errorf("AddFile : %w", clerror.ErrAllRequiredFieldsMustBeFulled))
+		return true
+	}
+
+	MD5, err := checksumMD5(fileInfo.FilePath)
 	if err != nil {
 		log.Error(err)
 		return true
 	}
+	fileInfo.MD5 = MD5
+
+	c.storage.AddFile(fileInfo)
 	return false
 }
 func AddText(c *Client) bool {
@@ -389,11 +405,12 @@ func AddText(c *Client) bool {
 	if textInfo == nil {
 		return false
 	}
-	err = c.storage.AddNewText(textInfo)
-	if err != nil {
-		log.Error(err)
+	if textInfo.Content == "" {
+		log.Error(fmt.Errorf("AddText : %w", clerror.ErrAllRequiredFieldsMustBeFulled))
 		return true
 	}
+
+	c.storage.AddText(textInfo)
 	return false
 }
 
@@ -502,11 +519,18 @@ func ReadBinaryFile() (int, *content.BinaryFileInfo, error) {
 
 	fmt.Println("File path for reading. Max file size: 4GB. : ")
 	filePath := ReadOneLine()
+	/*
+		MD5, err := checksumMD5(filePath)
+		if err != nil {
+			return 0, nil, err
+		}
+	*/
 	return index, &content.BinaryFileInfo{
 		FileName:         fileName,
 		FilePath:         filePath,
 		Description:      description,
 		ModificationTime: time.Now(),
+		MD5:              "",
 	}, nil
 }
 func ReadText() (int, *content.TextInfo, error) {
@@ -544,16 +568,16 @@ func Synchronization(c *Client) bool {
 	fmt.Println("6) Return to previous page")
 	answer := ReadOneLine()
 
-	var collection storage.Collection
+	dataType := ""
 	switch answer {
 	case "1":
-		collection = c.storage.GetCredentialsData()
+		dataType = urlsuff.DatatypeCredential
 	case "2":
-		collection = c.storage.GetCreditCardsData()
+		dataType = urlsuff.DatatypeCreditCard
 	case "3":
-		collection = c.storage.GetTextsData()
+		dataType = urlsuff.DatatypeText
 	case "4":
-		collection = c.storage.GetFilesData()
+		dataType = urlsuff.DatatypeFile
 	case "5":
 		err := FullSync(c)
 		if err != nil {
@@ -567,7 +591,7 @@ func Synchronization(c *Client) bool {
 		fmt.Println("Incorrect input")
 		return true
 	}
-	err := SyncCollection(c, collection)
+	err := SyncCollection(c, dataType)
 	if err != nil {
 		log.Println(err)
 		return false
@@ -575,94 +599,13 @@ func Synchronization(c *Client) bool {
 	return true
 }
 
-func SyncCollection(c *Client, collection storage.Collection) error {
-	finishCh := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	go SynchronizationPrinter(ctx, finishCh)
-
-	err := c.transport.Sync(context.Background(), collection)
-	cancel()
-	<-finishCh
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func SyncMonitor(c *Client, ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-
-		case <-time.After(c.config.SyncInterval):
-			err := FullSync(c)
-			if err != nil {
-				log.Println(err)
-			}
-		}
-	}
-}
-
-func SynchronizationPrinter(ctx context.Context, finishCh chan struct{}) {
-	writer := uilive.New()
-	writer.Start()
-	defer writer.Stop()
-
-	for i := 1; ; i++ {
-		select {
-		case <-ctx.Done():
-			fmt.Fprintf(writer, "Synchronization complete\n")
-			finishCh <- struct{}{}
-			return
-		default:
-			str := ""
-			for j := 0; j < i%20; j++ {
-				str += "*"
-			}
-			fmt.Fprintf(writer, "Synchronization: %s\n", str)
-		}
-		time.Sleep(time.Millisecond * 10)
-	}
-}
-
-func FullSync(c *Client) error {
-	fmt.Print("Credentials: ")
-	err := SyncCollection(c, c.storage.GetCredentialsData())
-	if err != nil {
-		return err
-	}
-	fmt.Print("Credit Cards: ")
-	err = SyncCollection(c, c.storage.GetCreditCardsData())
-	if err != nil {
-		return err
-	}
-	fmt.Print("Texts: ")
-	err = SyncCollection(c, c.storage.GetTextsData())
-	if err != nil {
-		return err
-	}
-	/*
-		fmt.Print("Files: ")
-		err = SyncCollection(c, c.storage.GetFilesData())
-		if err != nil {
-			return err
-		}
-	*/
-	return nil
-}
-
 func PrintCreditCards(c *Client) bool {
 	fmt.Println("*******************************************")
 	fmt.Println("Credit cards:")
 	cardsInfo := c.storage.GetCreditCardsData()
 	cards := cardsInfo.GetItems(nil)
-	switch t := cards.(type) {
-	case []content.CreditCardInfo:
-		for i, card := range t {
-			fmt.Printf("%d) %s", i, card.String())
-		}
+	for i, card := range cards {
+		fmt.Printf("%d) %s", i, card.String())
 	}
 	return false
 }
@@ -673,11 +616,8 @@ func PrintFiles(c *Client) bool {
 
 	filesInfo := c.storage.GetFilesData()
 	files := filesInfo.GetItems(nil)
-	switch t := files.(type) {
-	case []content.BinaryFileInfo:
-		for i, file := range t {
-			fmt.Printf("%d) %s", i, file.String())
-		}
+	for i, file := range files {
+		fmt.Printf("%d) %s", i, file.String())
 	}
 	return false
 }
@@ -687,11 +627,8 @@ func PrintTexts(c *Client) bool {
 
 	textsInfo := c.storage.GetTextsData()
 	texts := textsInfo.GetItems(nil)
-	switch t := texts.(type) {
-	case []content.TextInfo:
-		for i, text := range t {
-			fmt.Printf("%d) %s", i, text.String())
-		}
+	for i, text := range texts {
+		fmt.Printf("%d) %s", i, text.String())
 	}
 	return false
 }
@@ -700,12 +637,10 @@ func PrintCredentials(c *Client) bool {
 	fmt.Println("Credentials:")
 	credsInfo := c.storage.GetCredentialsData()
 	creds := credsInfo.GetItems(nil)
-	switch t := creds.(type) {
-	case []content.CredentialInfo:
-		for i, cred := range t {
-			fmt.Printf("%d) %s", i, cred.String())
-		}
+	for i, cred := range creds {
+		fmt.Printf("%d) %s", i, cred.String())
 	}
+
 	return false
 }
 
@@ -829,4 +764,19 @@ func CheckCVV(cvvStr string) error {
 		return nil
 	}
 	return clerror.ErrIncorrectValueCVV
+}
+
+func checksumMD5(filePath string) (string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := md5.New()
+	if _, err = io.Copy(h, f); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }

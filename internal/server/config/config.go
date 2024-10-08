@@ -6,9 +6,11 @@ import (
 )
 
 type Config struct {
-	Port           int
-	FileStorageDir string
-	SecretKey      string
+	ServerPort         int
+	DBconnectionString string
+	FileStorageDir     string
+	SecretKey          string
+	ChunkSize          int64
 }
 
 func ParseConfigFromJSON(configPath string) (*Config, error) {
